@@ -71,6 +71,14 @@ type AppSettings struct {
 	// PullSource data pull source: auto | github | cnb
 	// PullSource 数据拉取源：auto | github | cnb
 	PullSource string `yaml:"pull-source" default:"auto"`
+	// GitHubToken optional bearer token for the GitHub release API (version check /
+	// self-upgrade). Unauthenticated requests share a 60/h per-IP quota that shared
+	// NAT egress exhausts constantly; a token raises it to 5000/h. Only needed when
+	// api.github.com starts answering 403 rate-limit.
+	// GitHubToken GitHub release API（版本检查/自升级）可选 Bearer token。未鉴权请求
+	// 共享 60 次/小时/IP 配额，共享 NAT 出口极易耗尽；配置后提升到 5000/小时。仅在
+	// api.github.com 返回 403 限流时需要。
+	GitHubToken string `yaml:"github-token" default:""`
 	// PullReleaseChannel update version channel: stable | beta
 	// PullReleaseChannel 更新版本通道：stable（正式版） | beta（测试版）
 	PullReleaseChannel string `yaml:"pull-release-channel" default:"stable"`

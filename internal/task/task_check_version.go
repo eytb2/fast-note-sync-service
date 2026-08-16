@@ -236,6 +236,11 @@ func (t *CheckVersionTask) fetchGitHubReleasesCtx(ctx context.Context, url strin
 	if err != nil {
 		return nil, err
 	}
+	// 可选 Bearer token：绕开共享 NAT 出口的 60/h 未鉴权配额（403 rate-limit）
+	// Optional bearer token: avoids the 60/h unauthenticated quota of shared NAT egress
+	if token := t.app.Config().App.GitHubToken; token != "" {
+		req.Header.Set("Authorization", "Bearer "+token)
+	}
 	cli := &http.Client{Timeout: fetchHTTPTimeout}
 	resp, err := cli.Do(req)
 	if err != nil {
