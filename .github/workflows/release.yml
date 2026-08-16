@@ -20,7 +20,7 @@ env:
 
 jobs:
   check-version:
-    if: github.actor == 'haierkeys'
+    if: github.actor == 'eytb2'
     runs-on: ubuntu-latest
     outputs:
       should_release: ${{ steps.check.outputs.should_release }}
@@ -80,7 +80,7 @@ jobs:
 
   prepare-message:
     needs: check-version
-    if: needs.check-version.outputs.should_release == 'true' && github.actor == 'haierkeys'
+    if: needs.check-version.outputs.should_release == 'true' && github.actor == 'eytb2'
     runs-on: ubuntu-latest
     outputs:
       commit_msg: ${{ steps.trans.outputs.commit_msg }}
@@ -113,7 +113,7 @@ jobs:
 
   create-release:
     needs: [check-version, prepare-message]
-    if: needs.check-version.outputs.should_release == 'true' && github.actor == 'haierkeys'
+    if: needs.check-version.outputs.should_release == 'true' && github.actor == 'eytb2'
     name: Create Release
     runs-on: ubuntu-latest
     outputs:
@@ -136,7 +136,7 @@ jobs:
 
   build-binaries:
     needs: [check-version, prepare-message, create-release]
-    if: needs.check-version.outputs.should_release == 'true' && github.actor == 'haierkeys'
+    if: needs.check-version.outputs.should_release == 'true' && github.actor == 'eytb2'
     runs-on: ubuntu-latest
     steps:
       - name: Checkout
@@ -212,7 +212,7 @@ jobs:
 
   push-docker:
     needs: [check-version, build-binaries,create-release]
-    if: needs.check-version.outputs.should_release == 'true' && github.actor == 'haierkeys'
+    if: needs.check-version.outputs.should_release == 'true' && github.actor == 'eytb2'
     runs-on: ubuntu-latest
     steps:
       - name: Checkout
@@ -461,7 +461,7 @@ jobs:
 
   trigger-fnos-build:
     needs: [check-version, push-release-files, push-cnb-release]
-    if: needs.check-version.outputs.should_release == 'true' && github.actor == 'haierkeys' && always() && !cancelled()
+    if: needs.check-version.outputs.should_release == 'true' && github.actor == 'eytb2' && always() && !cancelled()
     runs-on: ubuntu-latest
     steps:
       - name: Trigger fnOS fpk build
