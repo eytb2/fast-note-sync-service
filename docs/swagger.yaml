@@ -696,6 +696,9 @@ definitions:
       ctime:
         description: Creation timestamp // 创建时间戳
         type: integer
+      entryId:
+        description: v3 entry UUID (fs_entry.id) // v3 条目 UUID
+        type: string
       id:
         description: File ID // 文件 ID
         type: integer
@@ -1073,6 +1076,9 @@ definitions:
       ctime:
         description: Creation timestamp // 创建时间戳
         type: integer
+      entryId:
+        description: v3 entry UUID (fs_entry.id) // v3 条目 UUID
+        type: string
       id:
         description: Note ID // 笔记 ID
         type: integer
@@ -1123,6 +1129,9 @@ definitions:
         items:
           type: object
         type: array
+      entryId:
+        description: v3 entry UUID (fs_entry.id) // v3 条目 UUID
+        type: string
       id:
         description: History entry ID // 历史项 ID
         type: integer
@@ -1198,6 +1207,10 @@ definitions:
         description: Creation timestamp // 创建时间戳
         example: 1700000000
         type: integer
+      isConflictResolved:
+        description: Marks if conflict is resolved manually // 标记是否为手动解决冲突
+        example: false
+        type: boolean
       mtime:
         description: Modification timestamp // 修改时间戳
         example: 1700000000
@@ -1235,6 +1248,9 @@ definitions:
       ctime:
         description: Creation timestamp // 创建时间戳
         type: integer
+      entryId:
+        description: v3 entry UUID (fs_entry.id) // v3 条目 UUID
+        type: string
       id:
         description: Note ID // 笔记 ID
         type: integer
@@ -1641,12 +1657,16 @@ definitions:
       baseUrl:
         description: Base URL for sharing // 分享基础 URL
         type: string
+      entryId:
+        description: v3 entry UUID (fs_entry.id; the share URL rid for v3 shares)
+          // v3 条目 UUID（分享 URL 中的 rid）
+        type: string
       expiresAt:
         description: Expiration time // 过期时间
         type: string
       id:
         description: ID of the note or file table (primary resource ID) // 笔记或文件表
-          ID（主资源 ID）
+          ID（主资源 ID，v3 恒为 0）
         type: integer
       isPassword:
         description: Whether password is set // 是否设置了密码
@@ -1668,6 +1688,9 @@ definitions:
         type: string
       createdAt:
         description: Created at // 创建时间
+        type: string
+      entryId:
+        description: v3 entry UUID（主资源；v3 分享必填） // v3 条目 UUID
         type: string
       expiresAt:
         description: Expiration time // 过期时间
@@ -4621,11 +4644,16 @@ paths:
         name: Share-Token
         required: true
         type: string
-      - description: Resource ID // 资源 ID
+      - description: v3 entry UUID（与 id 二选一，优先） // v3 条目 UUID（与 id 二选一，优先）
+        example: b3f1...uuid
+        in: query
+        name: entryId
+        type: string
+      - description: Resource ID (legacy int ID; v3 uses entryId) // 资源 ID（旧整型；v3
+          用 entryId）
         example: 1
         in: query
         name: id
-        required: true
         type: integer
       - description: Share password // 分享密码
         example: "123456"
@@ -4654,11 +4682,16 @@ paths:
         name: Share-Token
         required: true
         type: string
-      - description: Resource ID // 资源 ID
+      - description: v3 entry UUID（与 id 二选一，优先） // v3 条目 UUID（与 id 二选一，优先）
+        example: b3f1...uuid
+        in: query
+        name: entryId
+        type: string
+      - description: Resource ID (legacy int ID; v3 uses entryId) // 资源 ID（旧整型；v3
+          用 entryId）
         example: 1
         in: query
         name: id
-        required: true
         type: integer
       - description: Share password // 分享密码
         example: "123456"

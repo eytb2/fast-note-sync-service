@@ -8,14 +8,13 @@ import (
 	"github.com/haierkeys/fast-note-sync-service/internal/app"
 	"github.com/haierkeys/fast-note-sync-service/internal/dto"
 	pkgapp "github.com/haierkeys/fast-note-sync-service/pkg/app"
-	"github.com/haierkeys/fast-note-sync-service/pkg/code"
 	"github.com/haierkeys/fast-note-sync-service/pkg/util"
 	"github.com/mark3labs/mcp-go/mcp"
 	mcpsrv "github.com/mark3labs/mcp-go/server"
 )
 
 func registerFolderTools(srv *mcpsrv.MCPServer, appContainer *app.App, wss *pkgapp.WebsocketServer) {
-	folderSvc := appContainer.FolderService
+	folderSvc := appContainer.FolderServiceV3
 	cfg := appContainer.Config()
 
 	toolDeleteFolder := mcp.NewTool("folder_delete",
@@ -49,13 +48,6 @@ func registerFolderTools(srv *mcpsrv.MCPServer, appContainer *app.App, wss *pkga
 		}
 
 		if wss != nil {
-			wss.BroadcastToUser(uid, code.Success.WithData(dto.FolderSyncDeleteMessage{
-				Path:             folder.Path,
-				PathHash:         folder.PathHash,
-				Ctime:            folder.Ctime,
-				Mtime:            folder.Mtime,
-				UpdatedTimestamp: folder.UpdatedTimestamp,
-			}).WithVault(vault), "FolderSyncDelete")
 		}
 		fallback := fmt.Sprintf("Deleted folder recursively: %s", folder.Path)
 		return mcp.NewToolResultStructured(mcpFolderMutationOutput{

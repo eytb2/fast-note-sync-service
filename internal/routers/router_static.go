@@ -129,7 +129,7 @@ func registerStaticFiles(r *gin.Engine, frontendFiles embed.FS, appContainer *ap
 
 		// 5. 调用文件服务获取物理路径并返回
 		// 5. Call file service to get physical path and serve
-		fileSvc := appContainer.GetFileService("", "", "")
+		fileSvc := appContainer.GetFileServiceV3("", "", "")
 		ctx := c.Request.Context()
 		params := &dto.FileGetRequest{
 			Vault:    vault,
@@ -175,6 +175,17 @@ func registerWebGuiRoutes(r *gin.Engine, frontendFiles embed.FS, appContainer *a
 
 	r.GET("/webgui/", func(c *gin.Context) {
 		renderHTMLWithAPI(c, frontendIndexContent, apiUrl)
+	})
+
+	// 独立目录树预览页（SPA 为预编译产物无源码，树预览走自包含静态页）
+	// Standalone folder-tree preview page (the SPA ships prebuilt without
+	// sources; the tree preview lives in a self-contained static page)
+	frontendTreeContent, _ := frontendFiles.ReadFile("frontend/tree.html")
+	r.GET("/tree", func(c *gin.Context) {
+		renderHTMLWithAPI(c, frontendTreeContent, apiUrl)
+	})
+	r.GET("/tree/", func(c *gin.Context) {
+		renderHTMLWithAPI(c, frontendTreeContent, apiUrl)
 	})
 }
 

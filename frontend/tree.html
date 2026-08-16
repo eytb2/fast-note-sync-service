@@ -1,0 +1,836 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>fns · 库浏览器</title>
+<style>
+  :root {
+    --bg: #1e1e1e; --bg2: #252525; --bg3: #2c2c2c;
+    --fg: #dcddde; --fg-dim: #9a9a9a;
+    --accent: #7f6df2; --accent2: #9d8cff;
+    --border: #3a3a3a; --hover: #323232;
+    --note: #e6b450; --file: #7f6df2;
+  }
+  * { box-sizing: border-box; margin: 0; padding: 0; }
+  html, body { height: 100%; }
+  body {
+    font: 14px/1.5 -apple-system, "Segoe UI", "Noto Sans CJK SC", "PingFang SC", "Microsoft YaHei", sans-serif;
+    background: var(--bg); color: var(--fg); display: flex; flex-direction: column;
+  }
+  header {
+    display: flex; align-items: center; gap: 10px; padding: 8px 14px;
+    background: var(--bg2); border-bottom: 1px solid var(--border); flex: none;
+  }
+  header h1 { font-size: 15px; font-weight: 600; color: var(--accent2); white-space: nowrap; }
+  header .spacer { flex: 1; }
+  select, input[type=text], input[type=password], button {
+    background: var(--bg3); color: var(--fg); border: 1px solid var(--border);
+    border-radius: 5px; padding: 5px 9px; font-size: 13px; outline: none;
+  }
+  input:focus, select:focus { border-color: var(--accent); }
+  button { cursor: pointer; white-space: nowrap; }
+  button:hover { border-color: var(--accent); }
+  button.primary { background: var(--accent); border-color: var(--accent); color: #fff; }
+  #search { width: 200px; }
+  #main { flex: 1; display: flex; min-height: 0; }
+
+  /* 左侧：快捷入口 + 文档树 */
+  #side {
+    width: 260px; min-width: 190px; flex: none; display: flex; flex-direction: column;
+    background: var(--bg2); border-right: 1px solid var(--border);
+  }
+  #quick { flex: none; padding: 8px 6px 6px; border-bottom: 1px solid var(--border); }
+  .quick-row {
+    display: flex; align-items: center; gap: 7px; padding: 6px 10px; border-radius: 5px;
+    cursor: pointer; user-select: none;
+  }
+  .quick-row:hover { background: var(--hover); }
+  .quick-row.active { background: var(--accent); color: #fff; }
+  .quick-row .cnt { margin-left: auto; font-size: 11px; color: var(--fg-dim); }
+  .quick-row.active .cnt { color: #e8e4ff; }
+  #treewrap { flex: 1; overflow: auto; padding: 8px 4px; }
+  #treewrap .root-row { padding: 4px 8px; color: var(--fg-dim); font-size: 12px; }
+  .tree-node { user-select: none; }
+  .tree-row {
+    display: flex; align-items: center; gap: 5px; padding: 3px 8px; border-radius: 4px;
+    cursor: pointer; white-space: nowrap; overflow: hidden;
+  }
+  .tree-row:hover { background: var(--hover); }
+  .tree-row.active { background: var(--accent); color: #fff; }
+  .tree-row .arrow { width: 14px; flex: none; color: var(--fg-dim); font-size: 10px; text-align: center; }
+  .tree-row .arrow.leaf { visibility: hidden; }
+  .tree-row .name { overflow: hidden; text-overflow: ellipsis; }
+  .tree-row .cnt { margin-left: auto; font-size: 11px; color: var(--fg-dim); flex: none; }
+  .tree-row.active .cnt { color: #e8e4ff; }
+  .tree-children { margin-left: 14px; }
+  .tree-children.collapsed { display: none; }
+
+  /* 右侧内容 */
+  #content { flex: 1; display: flex; flex-direction: column; min-width: 0; }
+  #topbar {
+    flex: none; display: flex; align-items: center; gap: 10px; padding: 6px 14px;
+    border-bottom: 1px solid var(--border); background: var(--bg2); overflow-x: auto;
+  }
+  #topbar .crumb { color: var(--fg-dim); font-size: 13px; white-space: nowrap; }
+  .tabs { display: flex; gap: 4px; }
+  .tab {
+    background: none; border: 1px solid transparent; color: var(--fg-dim);
+    padding: 4px 12px; border-radius: 5px; font-size: 13px;
+  }
+  .tab:hover { color: var(--fg); background: var(--hover); }
+  .tab.active { color: #fff; background: var(--accent); }
+  .tab .n { font-size: 11px; opacity: .8; margin-left: 3px; }
+  #view { flex: 1; overflow: auto; padding: 14px 20px; }
+  #view .empty { color: var(--fg-dim); text-align: center; margin-top: 15%; }
+  #view .meta { color: var(--fg-dim); font-size: 12px; margin-bottom: 12px; }
+
+  /* 平铺笔记列表 */
+  .note-list { max-width: 900px; }
+  .note-row {
+    display: flex; align-items: center; gap: 10px; padding: 7px 10px; border-radius: 5px;
+    cursor: pointer; border-bottom: 1px solid var(--border);
+  }
+  .note-row:hover { background: var(--hover); }
+  .note-row .ic { color: var(--note); flex: none; }
+  .note-row .p { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+  .note-row .m { margin-left: auto; color: var(--fg-dim); font-size: 11px; flex: none; }
+  .loadmore {
+    display: block; margin: 14px auto; padding: 6px 22px;
+  }
+
+  /* 附件平铺网格 */
+  .file-grid {
+    display: grid; grid-template-columns: repeat(auto-fill, minmax(150px, 1fr));
+    gap: 12px;
+  }
+  .file-card {
+    background: var(--bg2); border: 1px solid var(--border); border-radius: 8px;
+    overflow: hidden; cursor: pointer;
+  }
+  .file-card:hover { border-color: var(--accent); }
+  .file-card .thumb {
+    height: 110px; background: var(--bg3); display: flex; align-items: center;
+    justify-content: center; font-size: 34px; overflow: hidden;
+  }
+  .file-card .thumb img { width: 100%; height: 100%; object-fit: cover; display: block; }
+  .file-card .thumb video { width: 100%; height: 100%; object-fit: contain; }
+  .file-card .label { padding: 6px 8px 7px; }
+  .file-card .label .nm {
+    font-size: 12px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap;
+  }
+  .file-card .label .sz { font-size: 11px; color: var(--fg-dim); }
+
+  /* 笔记 markdown 预览 */
+  .md { max-width: 900px; }
+  .md h1, .md h2, .md h3, .md h4 { margin: 0.9em 0 0.4em; line-height: 1.3; color: #fff; }
+  .md h1 { font-size: 1.55em; border-bottom: 1px solid var(--border); padding-bottom: 0.25em; }
+  .md h2 { font-size: 1.32em; border-bottom: 1px solid var(--border); padding-bottom: 0.2em; }
+  .md h3 { font-size: 1.15em; } .md h4 { font-size: 1.02em; }
+  .md p { margin: 0.45em 0; }
+  .md pre { background: var(--bg3); border: 1px solid var(--border); border-radius: 6px; padding: 10px 12px; overflow-x: auto; margin: 0.6em 0; }
+  .md code { font: 12px/1.5 "JetBrains Mono", Consolas, monospace; background: var(--bg3); border-radius: 3px; padding: 1px 4px; }
+  .md pre code { background: none; padding: 0; }
+  .md ul, .md ol { margin: 0.45em 0; padding-left: 1.6em; }
+  .md blockquote { border-left: 3px solid var(--accent); margin: 0.6em 0; padding: 2px 12px; color: var(--fg-dim); }
+  .md hr { border: none; border-top: 1px solid var(--border); margin: 1em 0; }
+  .md a { color: var(--accent2); }
+  .md table { border-collapse: collapse; margin: 0.6em 0; }
+  .md th, .md td { border: 1px solid var(--border); padding: 4px 10px; }
+  .md img { max-width: 100%; border-radius: 4px; }
+
+  /* 附件大图预览 */
+  .preview-wrap { text-align: center; }
+  .preview-wrap img.full, .preview-wrap video.full { max-width: 100%; max-height: 72vh; border-radius: 6px; }
+  .dl-btn { margin-top: 12px; }
+
+  /* 登录遮罩 */
+  #loginmask {
+    position: fixed; inset: 0; background: rgba(0,0,0,.65); display: flex;
+    align-items: center; justify-content: center; z-index: 10;
+  }
+  #loginmask.collapsed { display: none; }
+  #loginbox { background: var(--bg2); border: 1px solid var(--border); border-radius: 10px; padding: 26px 30px; width: 320px; }
+  #loginbox h2 { font-size: 15px; margin-bottom: 16px; color: var(--accent2); }
+  #loginbox label { display: block; font-size: 12px; color: var(--fg-dim); margin: 10px 0 4px; }
+  #loginbox input { width: 100%; }
+  #loginbox button { width: 100%; margin-top: 18px; padding: 7px; }
+  #loginerr { color: #e06c6c; font-size: 12px; margin-top: 10px; min-height: 16px; }
+  .hidden { display: none !important; }
+</style>
+</head>
+<body>
+<header>
+  <h1>⌘ 库浏览器</h1>
+  <select id="vaultsel" title="切换笔记库"></select>
+  <input type="text" id="search" placeholder="搜索…（在全部笔记/附件中生效）">
+  <button id="refresh" title="重新拉取目录树">⟳ 刷新</button>
+  <div class="spacer"></div>
+  <span id="hint" style="color:var(--fg-dim);font-size:12px"></span>
+  <button id="logout" class="hidden">退出登录</button>
+</header>
+
+<div id="main">
+  <nav id="side">
+    <div id="quick">
+      <div class="quick-row" id="q-notes"><span>📄</span><span>全部笔记</span><span class="cnt" id="q-notes-n">–</span></div>
+      <div class="quick-row" id="q-files"><span>🖼</span><span>全部附件</span><span class="cnt" id="q-files-n">–</span></div>
+    </div>
+    <div id="treewrap"><div class="root-row">加载中…</div></div>
+  </nav>
+  <section id="content">
+    <div id="topbar"><span class="crumb">选择左侧目录或入口</span></div>
+    <div id="view"><div class="empty">（无内容）</div></div>
+  </section>
+</div>
+
+<div id="loginmask" class="collapsed">
+  <form id="loginbox">
+    <h2>登录 fns</h2>
+    <label>账号（用户名 / 邮箱）</label>
+    <input type="text" id="cred" autocomplete="username" required>
+    <label>密码</label>
+    <input type="password" id="pass" autocomplete="current-password" required>
+    <button type="submit" class="primary">登 录</button>
+    <div id="loginerr"></div>
+  </form>
+</div>
+
+<script>
+"use strict";
+(function () {
+  var TOKEN_KEY = "fns_tree_token";
+  var token = localStorage.getItem(TOKEN_KEY) || "";
+  var IMG_RE = /\.(png|jpe?g|gif|webp|svg|bmp|ico|avif)$/i;
+  var VID_RE = /\.(mp4|webm|mov|m4v)$/i;
+  var AUD_RE = /\.(mp3|wav|ogg|flac|m4a)$/i;
+  var THUMB_MAX = 20 * 1048576;   // 超过 20MB 的图片不做缩略图（原图字节太重）
+  var PAGE = 100;                 // 服务端分页上限
+
+  // view: {kind:"folder"|"allnotes"|"allfiles"|"note"|"file"}
+  var state = {
+    vault: "note", tree: null,
+    kind: "folder", folder: "", tab: "notes",
+    keyword: "", page: 1, items: [], total: 0,
+    notePath: null, filePath: null
+  };
+  // 树的展开状态（会话内记忆）+ 各目录笔记的加载标记
+  var expanded = new Set();
+  var notesLoaded = new Set();
+  var thumbCache = new Map();     // path -> objectURL（缩略图会话级缓存）
+  var previewURL = null;          // 大图/媒体预览的 objectURL，切换时回收
+  var observer = null;            // 缩略图懒加载
+
+  function api() { return (localStorage.getItem("API_URL") || "").replace(/\/+$/, ""); }
+  function $(id) { return document.getElementById(id); }
+  function esc(s) {
+    return String(s == null ? "" : s).replace(/[&<>"']/g, function (c) {
+      return { "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;", "'": "&#39;" }[c];
+    });
+  }
+  function fmtSize(n) {
+    if (n == null) return "";
+    if (n < 1024) return n + " B";
+    if (n < 1048576) return (n / 1024).toFixed(1) + " KB";
+    return (n / 1048576).toFixed(1) + " MB";
+  }
+  function fmtTime(ms) {
+    if (!ms) return "";
+    var d = new Date(ms < 1e12 ? ms * 1000 : ms);
+    var p = function (x) { return (x < 10 ? "0" : "") + x; };
+    return d.getFullYear() + "-" + p(d.getMonth() + 1) + "-" + p(d.getDate()) + " " + p(d.getHours()) + ":" + p(d.getMinutes());
+  }
+  // Obsidian 语义：隐藏点开头的路径（.obsidian / .fns 等不展示）
+  function hiddenPath(p) {
+    return String(p || "").split("/").some(function (seg) { return seg.startsWith("."); });
+  }
+  function fileIcon(p) {
+    if (IMG_RE.test(p)) return "🖼";
+    if (VID_RE.test(p)) return "🎬";
+    if (AUD_RE.test(p)) return "🎵";
+    if (/\.(pdf)$/i.test(p)) return "📕";
+    if (/\.(zip|7z|rar|tar|gz|xz)$/i.test(p)) return "📦";
+    if (/\.(md|txt|log)$/i.test(p)) return "📝";
+    return "📄";
+  }
+
+  // envelope 成功码为 1（code.Success=1）；307 未登录弹登录框
+  function request(method, path, body) {
+    var headers = { "x-client": "webgui" };
+    if (token) headers["token"] = token;
+    if (body) headers["Content-Type"] = "application/json";
+    return fetch(api() + path, {
+      method: method, headers: headers,
+      body: body ? JSON.stringify(body) : undefined
+    }).then(function (r) { return r.json(); }).then(function (env) {
+      if (env.code === 1) return env.data;
+      if (env.code === 307 || env.code === 300 || env.code === 301 || env.code === 302) { showLogin(); }
+      throw new Error("[" + env.code + "] " + (env.message || env.msg || "请求失败"));
+    });
+  }
+  // 附件原始字节（/api/file 直接返回二进制 + content-type）
+  function fetchBlobURL(path) {
+    var headers = { "x-client": "webgui" };
+    if (token) headers["token"] = token;
+    return fetch(api() + "/api/file?vault=" + encodeURIComponent(state.vault) +
+      "&path=" + encodeURIComponent(path), { headers: headers })
+      .then(function (r) {
+        if (!r.ok) throw new Error("HTTP " + r.status);
+        return r.blob();
+      })
+      .then(function (b) { return URL.createObjectURL(b); });
+  }
+
+  function showLogin() { $("loginmask").classList.remove("collapsed"); token = ""; localStorage.removeItem(TOKEN_KEY); }
+  function hideLogin() { $("loginmask").classList.add("collapsed"); }
+  function hint(msg) { $("hint").textContent = msg || ""; }
+
+  $("loginbox").addEventListener("submit", function (ev) {
+    ev.preventDefault();
+    $("loginerr").textContent = "";
+    fetch(api() + "/api/user/login", {
+      method: "POST",
+      headers: { "Content-Type": "application/json", "x-client": "webgui" },
+      body: JSON.stringify({ credentials: $("cred").value.trim(), password: $("pass").value })
+    }).then(function (r) { return r.json(); }).then(function (env) {
+      if (env.code !== 1 || !env.data || !env.data.token) {
+        $("loginerr").textContent = "[" + env.code + "] " + (env.message || "登录失败");
+        return;
+      }
+      token = env.data.token;
+      localStorage.setItem(TOKEN_KEY, token);
+      hideLogin();
+      boot();
+    }).catch(function (e) { $("loginerr").textContent = String(e); });
+  });
+  $("logout").addEventListener("click", function () { showLogin(); });
+  $("refresh").addEventListener("click", function () { if (token) loadTree(true); });
+  $("search").addEventListener("keydown", function (ev) {
+    if (ev.key !== "Enter") return;
+    state.keyword = this.value.trim();
+    if (state.kind !== "allnotes" && state.kind !== "allfiles") openAll("allnotes");
+    else openAll(state.kind);
+  });
+  $("vaultsel").addEventListener("change", function () {
+    state.vault = this.value; state.folder = ""; state.notePath = null; state.filePath = null;
+    thumbCache.forEach(function (u) { URL.revokeObjectURL(u); });
+    thumbCache.clear();
+    loadTree(true);
+  });
+  $("q-notes").addEventListener("click", function () { openAll("allnotes"); });
+  $("q-files").addEventListener("click", function () { openAll("allfiles"); });
+
+  // ── 启动：库列表 + 树 ───────────────────────────────────────────────────
+  function boot() {
+    $("logout").classList.remove("hidden");
+    request("GET", "/api/vault").then(function (list) {
+      var sel = $("vaultsel");
+      sel.innerHTML = "";
+      (list || []).forEach(function (v) {
+        var o = document.createElement("option");
+        o.value = v.vault || v.name;
+        o.textContent = (v.vault || v.name) + "（" + (v.noteCount ?? 0) + " 笔记 / " + (v.fileCount ?? 0) + " 附件）";
+        sel.appendChild(o);
+      });
+      if (!sel.options.length) {
+        var o = document.createElement("option");
+        o.value = state.vault; o.textContent = state.vault; sel.appendChild(o);
+      }
+      var found = Array.prototype.some.call(sel.options, function (o) { return o.value === state.vault; });
+      if (!found) state.vault = sel.options[0].value;
+      sel.value = state.vault;
+      loadTree(true);
+    }).catch(function (e) { hint(String(e)); });
+  }
+
+  function loadTree(reset) {
+    restoreExpansion();
+    hint("加载中…");
+    request("GET", "/api/folder/tree?vault=" + encodeURIComponent(state.vault)).then(function (tree) {
+      state.tree = tree || { folders: [], rootNoteCount: 0, rootFileCount: 0 };
+      request("GET", "/api/vault").then(function (list) {
+        var v = (list || []).find(function (x) { return (x.vault || x.name) === state.vault; });
+        $("q-notes-n").textContent = v ? v.noteCount : "–";
+        $("q-files-n").textContent = v ? v.fileCount : "–";
+      }).catch(function () { });
+      renderTree();
+      hint("");
+      if (reset) { state.kind = "folder"; state.folder = ""; state.tab = "notes"; openFolder(""); }
+    }).catch(function (e) { hint(String(e)); });
+  }
+
+  // ── 左侧树（Obsidian 式文件浏览器：文件夹 + 展开懒加载笔记）─────────────
+  function renderTree() {
+    var wrap = $("treewrap");
+    wrap.innerHTML = "";
+    var root = document.createElement("div");
+    root.className = "tree-node";
+    var rootRow = document.createElement("div");
+    rootRow.className = "tree-row" + (state.kind === "folder" && state.folder === "" ? " active" : "");
+    rootRow.innerHTML =
+      '<span class="arrow leaf">▸</span><span class="name">📔 ' + esc(state.vault) + "</span>" +
+      '<span class="cnt">' + (state.tree.rootNoteCount || 0) + "</span>";
+    rootRow.addEventListener("click", function () { openFolder(""); });
+    root.appendChild(rootRow);
+    var rootChildren = document.createElement("div");
+    rootChildren.className = "tree-children";
+    rootChildren.setAttribute("data-dir", "");
+    // 隐藏点开头目录（.obsidian 等）——与 Obsidian「隐藏文件不同步」语义一致，纯展示层过滤
+    (state.tree.folders || []).filter(function (n) { return !(n.name || "").startsWith("."); })
+      .forEach(function (n) { rootChildren.appendChild(folderNode(n)); });
+    root.appendChild(rootChildren);
+    wrap.appendChild(root);
+    maybeLoadNotes(rootChildren, "");  // 根笔记（展开过的目录才加载）
+  }
+
+  function folderNode(n) {
+    var node = document.createElement("div");
+    node.className = "tree-node";
+    var hasKids = n.children && n.children.length;
+    var open = expanded.has(n.path);
+    var row = document.createElement("div");
+    row.className = "tree-row" + (state.kind === "folder" && state.folder === n.path ? " active" : "");
+    row.innerHTML =
+      '<span class="arrow' + (hasKids || n.noteCount ? "" : " leaf") + '">' + (open ? "▾" : "▸") + "</span>" +
+      '<span class="name">' + (open ? "📂" : "📁") + " " + esc(n.name) + "</span>" +
+      '<span class="cnt">' + (n.noteCount || 0) + "</span>";
+    row.addEventListener("click", function (ev) {
+      if (ev.target.classList && ev.target.classList.contains("arrow")) {
+        toggleFolder(n.path, kids, row);
+        return;
+      }
+      openFolder(n.path);
+    });
+    node.appendChild(row);
+    var kids = document.createElement("div");
+    kids.className = "tree-children" + (open ? "" : " collapsed");
+    kids.setAttribute("data-dir", n.path);
+    (n.children || []).filter(function (c) { return !(c.name || "").startsWith("."); })
+      .forEach(function (c) { kids.appendChild(folderNode(c)); });
+    node.appendChild(kids);
+    if (open) maybeLoadNotes(kids, n.path);
+    return node;
+  }
+
+  function toggleFolder(path, kidsEl, rowEl) {
+    var collapsed = kidsEl.classList.toggle("collapsed");
+    rowEl.querySelector(".arrow").textContent = collapsed ? "▸" : "▾";
+    if (collapsed) expanded.delete(path);
+    else {
+      expanded.add(path);
+      maybeLoadNotes(kidsEl, path);
+    }
+    persistExpansion();
+  }
+
+  // 展开某目录时拉取其笔记，作为树节点插到子文件夹之后（Obsidian 顺序：文件夹在前）
+  function maybeLoadNotes(kidsEl, dir) {
+    var key = state.vault + "|" + dir;
+    if (notesLoaded.has(key) || !kidsEl) return;
+    notesLoaded.add(key);
+    request("GET", folderQuery("notes", dir, 1)).then(function (res) {
+      var items = ((res && res.list) || []).filter(function (i) { return !hiddenPath(i.path); });
+      var total = res && res.pager ? res.pager.totalRows : items.length;
+      items.forEach(function (it) { kidsEl.appendChild(noteTreeRow(it)); });
+      if (total > items.length) {
+        var more = document.createElement("div");
+        more.className = "tree-row";
+        more.style.color = "var(--fg-dim)";
+        more.innerHTML = '<span class="arrow leaf">▸</span><span class="name" style="font-size:12px">…共 ' + total + " 篇，进目录视图看全部</span>";
+        more.addEventListener("click", function () { openFolder(dir); });
+        kidsEl.appendChild(more);
+      }
+    }).catch(function () { notesLoaded.delete(key); });
+  }
+
+  function noteTreeRow(it) {
+    var row = document.createElement("div");
+    row.className = "tree-row" + (state.notePath === it.path ? " active" : "");
+    row.innerHTML =
+      '<span class="arrow leaf">▸</span><span class="name" style="font-size:13px">📝 ' +
+      esc((it.path || "").split("/").pop()) + "</span>" +
+      '<span class="cnt" style="font-size:10px">' + fmtTime(it.mtime).slice(5, 10) + "</span>";
+    row.addEventListener("click", function () {
+      state.folder = (it.path || "").split("/").slice(0, -1).join("/");
+      state._from = "folder";
+      openNote(it.path);
+    });
+    return row;
+  }
+
+  function persistExpansion() {
+    try {
+      sessionStorage.setItem("fns_tree_exp_" + state.vault, JSON.stringify(Array.from(expanded)));
+    } catch (e) { }
+  }
+  function restoreExpansion() {
+    try {
+      expanded = new Set(JSON.parse(sessionStorage.getItem("fns_tree_exp_" + state.vault) || "[]"));
+    } catch (e) { expanded = new Set(); }
+  }
+
+  // ── 目录视图：笔记 + 附件 同层级平铺 ────────────────────────────────────
+  function folderQuery(kind, path, page) {
+    return "/api/folder/" + kind + "?vault=" + encodeURIComponent(state.vault) +
+      "&sortBy=mtime&sortOrder=desc&page=" + page + "&pageSize=" + PAGE +
+      (path ? "&path=" + encodeURIComponent(path) : "");
+  }
+
+  function openFolder(path) {
+    state.kind = "folder"; state.folder = path; state.page = 1;
+    state.notePath = null; state.filePath = null;
+    renderTree();
+    hint("加载目录…");
+    var qn = request("GET", folderQuery("notes", path, 1));
+    var qf = request("GET", folderQuery("files", path, 1));
+    Promise.all([qn, qf]).then(function (rs) {
+      var notes = ((rs[0] && rs[0].list) || []).filter(function (i) { return !hiddenPath(i.path); });
+      var files = ((rs[1] && rs[1].list) || []).filter(function (i) { return !hiddenPath(i.path); });
+      state.items = state.tab === "notes" ? notes : files;
+      state.total = (state.tab === "notes"
+        ? (rs[0] && rs[0].pager ? rs[0].pager.totalRows : notes.length)
+        : (rs[1] && rs[1].pager ? rs[1].pager.totalRows : files.length));
+      // tab 切换时免重新拉取：缓存两份
+      state._notes = notes; state._notesTotal = rs[0] && rs[0].pager ? rs[0].pager.totalRows : notes.length;
+      state._files = files; state._filesTotal = rs[1] && rs[1].pager ? rs[1].pager.totalRows : files.length;
+      renderTopbar();
+      renderFolderView();
+      hint("");
+    }).catch(function (e) { hint(String(e)); });
+  }
+
+  function renderTopbar() {
+    var bar = $("topbar");
+    bar.innerHTML = "";
+    if (state.kind === "folder") {
+      var crumb = document.createElement("span");
+      crumb.className = "crumb";
+      crumb.textContent = "📁 " + (state.folder || "（根目录）");
+      bar.appendChild(crumb);
+      var tabs = document.createElement("div");
+      tabs.className = "tabs";
+      [["notes", "笔记", state._notesTotal || 0], ["files", "附件", state._filesTotal || 0]].forEach(function (t) {
+        var b = document.createElement("button");
+        b.className = "tab" + (state.tab === t[0] ? " active" : "");
+        b.innerHTML = esc(t[1]) + '<span class="n">' + t[2] + "</span>";
+        b.addEventListener("click", function () {
+          state.tab = t[0];
+          state.items = t[0] === "notes" ? (state._notes || []) : (state._files || []);
+          state.total = t[0] === "notes" ? state._notesTotal : state._filesTotal;
+          renderTopbar(); renderFolderView();
+        });
+        tabs.appendChild(b);
+      });
+      bar.appendChild(tabs);
+    } else if (state.kind === "allnotes") {
+      bar.innerHTML = '<span class="crumb">📄 全部笔记' +
+        (state.keyword ? " · 搜索“" + esc(state.keyword) + "”" : "") + " · " + state.total + " 篇</span>";
+    } else if (state.kind === "allfiles") {
+      bar.innerHTML = '<span class="crumb">🖼 全部附件' +
+        (state.keyword ? " · 搜索“" + esc(state.keyword) + "”" : "") + " · " + state.total + " 个</span>";
+    } else if (state.kind === "note") {
+      bar.innerHTML = '<button id="backbtn">← 返回</button><span class="crumb">📄 ' + esc(state.notePath || "") + "</span>";
+      var bb = bar.querySelector("#backbtn");
+      bb.addEventListener("click", function () {
+        if (state._from === "allnotes") openAll("allnotes"); else openFolder(state.folder);
+      });
+    } else if (state.kind === "file") {
+      bar.innerHTML = '<button id="backbtn">← 返回</button><span class="crumb">📎 ' + esc(state.filePath || "") + "</span>";
+      var bb2 = bar.querySelector("#backbtn");
+      bb2.addEventListener("click", function () {
+        if (state._from === "allfiles") openAll("allfiles"); else openFolder(state.folder);
+      });
+    }
+  }
+
+  function renderFolderView() {
+    var view = $("view");
+    view.innerHTML = "";
+    view.scrollTop = 0;
+    if (state.tab === "notes") renderNoteList(view, state.items, state.total > state.items.length);
+    else renderFileGrid(view, state.items, state.total > state.items.length);
+  }
+
+  // ── 平铺笔记列表 ────────────────────────────────────────────────────────
+  function renderNoteList(container, items, more) {
+    if (!items.length) {
+      container.innerHTML = '<div class="empty">没有笔记</div>';
+      return;
+    }
+    var list = document.createElement("div");
+    list.className = "note-list";
+    items.forEach(function (it) {
+      var row = document.createElement("div");
+      row.className = "note-row";
+      row.innerHTML =
+        '<span class="ic">📝</span><span class="p">' + esc(it.path) + "</span>" +
+        '<span class="m">' + fmtTime(it.mtime) + " · " + fmtSize(it.size) + "</span>";
+      row.addEventListener("click", function () {
+        state._from = state.kind === "allnotes" ? "allnotes" : "folder";
+        openNote(it.path);
+      });
+      list.appendChild(row);
+    });
+    container.appendChild(list);
+    if (more) {
+      var b = document.createElement("button");
+      b.className = "loadmore";
+      b.textContent = "加载更多（" + items.length + "/" + state.total + "）";
+      b.addEventListener("click", function () { loadMore(); });
+      container.appendChild(b);
+    }
+  }
+
+  // ── 附件平铺网格（图片懒加载缩略图）─────────────────────────────────────
+  function renderFileGrid(container, items, more) {
+    if (!items.length) {
+      container.innerHTML = '<div class="empty">没有附件</div>';
+      return;
+    }
+    var grid = document.createElement("div");
+    grid.className = "file-grid";
+    items.forEach(function (it) {
+      var card = document.createElement("div");
+      card.className = "file-card";
+      card.innerHTML =
+        '<div class="thumb" data-path="' + esc(it.path) + '" data-size="' + (it.size || 0) + '">' +
+        fileIcon(it.path) + "</div>" +
+        '<div class="label"><div class="nm" title="' + esc(it.path) + '">' +
+        esc((it.path || "").split("/").pop()) + '</div><div class="sz">' +
+        fmtTime(it.mtime) + " · " + fmtSize(it.size) + "</div></div>";
+      card.addEventListener("click", function () {
+        state._from = state.kind === "allfiles" ? "allfiles" : "folder";
+        openFile(it.path, it.size);
+      });
+      grid.appendChild(card);
+    });
+    container.appendChild(grid);
+    if (more) {
+      var b = document.createElement("button");
+      b.className = "loadmore";
+      b.textContent = "加载更多（" + items.length + "/" + state.total + "）";
+      b.addEventListener("click", function () { loadMore(); });
+      container.appendChild(b);
+    }
+    armThumbObserver(container);
+  }
+
+  // 懒加载：卡片滚入视口才取缩略图字节（原图 objectURL，CSS 压缩显示）
+  function armThumbObserver(scope) {
+    if (observer) observer.disconnect();
+    if (!("IntersectionObserver" in window)) return;
+    observer = new IntersectionObserver(function (entries) {
+      entries.forEach(function (en) {
+        if (!en.isIntersecting) return;
+        observer.unobserve(en.target);
+        loadThumb(en.target);
+      });
+    }, { root: $("view"), rootMargin: "160px" });
+    scope.querySelectorAll(".thumb[data-path]").forEach(function (el) { observer.observe(el); });
+  }
+
+  function loadThumb(el) {
+    var path = el.getAttribute("data-path");
+    var size = parseInt(el.getAttribute("data-size") || "0", 10);
+    if (!IMG_RE.test(path) && !VID_RE.test(path)) return;   // 非媒体保持图标
+    if (size > THUMB_MAX) return;
+    if (thumbCache.has(path)) { setThumb(el, path); return; }
+    fetchBlobURL(path).then(function (u) {
+      thumbCache.set(path, u);
+      setThumb(el, path);
+    }).catch(function () { /* 失败保持图标 */ });
+  }
+
+  function setThumb(el, path) {
+    var u = thumbCache.get(path);
+    if (!u) return;
+    var m = document.createElement(IMG_RE.test(path) ? "img" : "video");
+    if (m.tagName === "VIDEO") { m.muted = true; m.preload = "metadata"; }
+    m.src = u; m.alt = path;
+    el.textContent = "";
+    el.appendChild(m);
+  }
+
+  // ── 全部笔记 / 全部附件（库级平铺，带搜索 + 分页）──────────────────────
+  function openAll(kind) {
+    state.kind = kind; state.page = 1; state.items = []; state.total = 0;
+    state.notePath = null; state.filePath = null;
+    state._from = kind;
+    renderTree();
+    renderTopbar();
+    $("view").innerHTML = '<div class="empty">加载中…</div>';
+    fetchAllPage(true).then(function () {
+      renderTopbar();
+      var view = $("view");
+      view.innerHTML = "";
+      if (kind === "allnotes") renderNoteList(view, state.items, state.total > state.items.length);
+      else renderFileGrid(view, state.items, state.total > state.items.length);
+    }).catch(function (e) { hint(String(e)); });
+  }
+
+  function fetchAllPage(reset) {
+    var base = state.kind === "allnotes" ? "/api/notes" : "/api/files";
+    var q = base + "?vault=" + encodeURIComponent(state.vault) +
+      (state.keyword ? "&keyword=" + encodeURIComponent(state.keyword) : "") +
+      "&sortBy=mtime&sortOrder=desc&page=" + state.page + "&pageSize=" + PAGE;
+    hint("加载…");
+    return request("GET", q).then(function (res) {
+      var items = ((res && res.list) || []).filter(function (i) { return !hiddenPath(i.path); });
+      state.total = res && res.pager ? res.pager.totalRows : items.length;
+      if (reset) state.items = items;
+      else state.items = state.items.concat(items);
+      hint("");
+    });
+  }
+
+  function loadMore() {
+    state.page += 1;
+    var view = $("view");
+    var scroll = view.scrollTop;
+    var q;
+    if (state.kind === "folder") {
+      // 目录视图：继续拉当前目录对应 tab 的分页
+      q = folderQuery(state.tab === "notes" ? "notes" : "files", state.folder, state.page);
+    } else {
+      q = (state.kind === "allnotes" ? "/api/notes" : "/api/files") +
+        "?vault=" + encodeURIComponent(state.vault) +
+        (state.keyword ? "&keyword=" + encodeURIComponent(state.keyword) : "") +
+        "&sortBy=mtime&sortOrder=desc&page=" + state.page + "&pageSize=" + PAGE;
+    }
+    hint("加载…");
+    request("GET", q).then(function (res) {
+      var items = ((res && res.list) || []).filter(function (i) { return !hiddenPath(i.path); });
+      state.total = res && res.pager ? res.pager.totalRows : state.items.length + items.length;
+      state.items = state.items.concat(items);
+      renderTopbar();
+      view.innerHTML = "";
+      if (state.kind === "allnotes" || (state.kind === "folder" && state.tab === "notes")) {
+        renderNoteList(view, state.items, state.total > state.items.length);
+      } else {
+        renderFileGrid(view, state.items, state.total > state.items.length);
+      }
+      view.scrollTop = scroll;
+      hint("");
+    }).catch(function (e) { hint(String(e)); });
+  }
+
+  // ── 笔记预览（markdown）────────────────────────────────────────────────
+  function openNote(path) {
+    state.kind = "note"; state.notePath = path;
+    renderTree();  // 同步树里的当前笔记高亮（展开状态由 expanded 集合保持）
+    hint("加载笔记…");
+    request("GET", "/api/note?vault=" + encodeURIComponent(state.vault) + "&path=" + encodeURIComponent(path))
+      .then(function (note) {
+        var content = note && note.content != null ? note.content : "";
+        var meta = [];
+        if (note && note.mtime) meta.push("修改于 " + fmtTime(note.mtime));
+        if (note && note.size != null) meta.push(fmtSize(note.size));
+        meta.push(esc(path));
+        renderTopbar();
+        $("view").innerHTML =
+          '<div class="meta">' + meta.join(" · ") + "</div>" +
+          '<div class="md">' + renderMarkdown(content) + "</div>";
+        $("view").scrollTop = 0;
+        hint("");
+      })
+      .catch(function (e) {
+        $("view").innerHTML = '<div class="empty">' + esc(String(e)) + "</div>";
+        hint("");
+      });
+  }
+
+  // ── 附件预览（图/视频/音频内联，其余给下载）────────────────────────────
+  function openFile(path, size) {
+    state.kind = "file"; state.filePath = path;
+    renderTopbar();
+    var view = $("view");
+    view.innerHTML = '<div class="empty">加载附件…</div>';
+    if (previewURL) { URL.revokeObjectURL(previewURL); previewURL = null; }
+    if (!IMG_RE.test(path) && !VID_RE.test(path) && !AUD_RE.test(path)) {
+      var meta = [fmtTime(Date.now()), fmtSize(size), esc(path)];
+      view.innerHTML =
+        '<div class="preview-wrap">' +
+        '<div style="font-size:56px">' + fileIcon(path) + "</div>" +
+        '<div class="meta">' + meta.join(" · ") + "</div>" +
+        '<button class="dl-btn primary" id="dl">⬇ 下载（' + fmtSize(size) + "）</button>" +
+        "</div>";
+      $("dl").addEventListener("click", function () {
+        fetchBlobURL(path).then(function (u) {
+          var a = document.createElement("a");
+          a.href = u; a.download = (path || "").split("/").pop() || "file";
+          document.body.appendChild(a); a.click(); a.remove();
+          setTimeout(function () { URL.revokeObjectURL(u); }, 60000);
+        }).catch(function (e) { hint(String(e)); });
+      });
+      return;
+    }
+    if (size > 200 * 1048576) {
+      view.innerHTML = '<div class="empty">文件过大（' + fmtSize(size) + "），请下载后查看</div>";
+      return;
+    }
+    fetchBlobURL(path).then(function (u) {
+      previewURL = u;
+      var meta = [fmtSize(size), esc(path)];
+      var el;
+      if (IMG_RE.test(path)) {
+        el = '<img class="full" src="' + u + '" alt="' + esc(path) + '">';
+      } else if (VID_RE.test(path)) {
+        el = '<video class="full" controls src="' + u + '"></video>';
+      } else {
+        el = '<audio controls src="' + u + '"></audio>';
+      }
+      view.innerHTML = '<div class="preview-wrap">' + el +
+        '<div class="meta">' + meta.join(" · ") + "</div></div>";
+    }).catch(function (e) {
+      view.innerHTML = '<div class="empty">' + esc(String(e)) + "</div>";
+    });
+  }
+
+  // ── 极简 markdown 渲染（先全量转义再套标签，无 XSS 面）─────────────────
+  function renderMarkdown(src) {
+    var lines = esc(String(src == null ? "" : src)).split("\n");
+    var out = [], i = 0, inCode = false, listType = null;
+    var inline = function (s) {
+      return s
+        .replace(/`([^`]+)`/g, "<code>$1</code>")
+        .replace(/\*\*([^*]+)\*\*/g, "<strong>$1</strong>")
+        .replace(/(^|\W)\*([^*\s][^*]*)\*(?=\W|$)/g, "$1<em>$2</em>")
+        .replace(/\[([^\]]+)\]\(([^)\s]+)\)/g, '<a href="$2" target="_blank" rel="noopener">$1</a>');
+    };
+    var closeList = function () { if (listType) { out.push(listType === "ul" ? "</ul>" : "</ol>"); listType = null; } };
+    for (; i < lines.length; i++) {
+      var L = lines[i];
+      if (/^```/.test(L)) {
+        if (inCode) { out.push("</code></pre>"); inCode = false; }
+        else { closeList(); out.push("<pre><code>"); inCode = true; }
+        continue;
+      }
+      if (inCode) { out.push(L + "\n"); continue; }
+      var h = /^(#{1,4})\s+(.*)$/.exec(L);
+      if (h) { closeList(); out.push("<h" + h[1].length + ">" + inline(h[2]) + "</h" + h[1].length + ">"); continue; }
+      if (/^\s*(-{3,}|\*{3,})\s*$/.test(L)) { closeList(); out.push("<hr>"); continue; }
+      var bq = /^&gt;\s?(.*)$/.exec(L);
+      if (bq) { closeList(); out.push("<blockquote>" + inline(bq[1]) + "</blockquote>"); continue; }
+      var ul = /^\s*[-*+]\s+(.*)$/.exec(L);
+      var ol = /^\s*\d+[.)]\s+(.*)$/.exec(L);
+      if (ul || ol) {
+        var t = ul ? "ul" : "ol";
+        if (listType !== t) { closeList(); out.push("<" + t + ">"); listType = t; }
+        out.push("<li>" + inline((ul || ol)[1]) + "</li>");
+        continue;
+      }
+      if (/^\s*$/.test(L)) { closeList(); continue; }
+      closeList();
+      out.push("<p>" + inline(L) + "</p>");
+    }
+    if (inCode) out.push("</code></pre>");
+    closeList();
+    return out.join("");
+  }
+
+  // ── 入口 ────────────────────────────────────────────────────────────────
+  if (token) boot(); else showLogin();
+})();
+</script>
+</body>
+</html>

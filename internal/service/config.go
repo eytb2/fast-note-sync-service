@@ -42,4 +42,3 @@ type ShortLinkServiceConfig struct {
 	Password string // Password // 密码
 	Cloaking bool   // Cloaking // 遮盖
 }
-

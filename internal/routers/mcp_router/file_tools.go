@@ -14,14 +14,13 @@ import (
 	"github.com/haierkeys/fast-note-sync-service/internal/app"
 	"github.com/haierkeys/fast-note-sync-service/internal/dto"
 	pkgapp "github.com/haierkeys/fast-note-sync-service/pkg/app"
-	"github.com/haierkeys/fast-note-sync-service/pkg/code"
 	"github.com/haierkeys/fast-note-sync-service/pkg/util"
 	"github.com/mark3labs/mcp-go/mcp"
 	mcpsrv "github.com/mark3labs/mcp-go/server"
 )
 
 func registerFileTools(srv *mcpsrv.MCPServer, appContainer *app.App, wss *pkgapp.WebsocketServer) {
-	fileSvc := appContainer.FileService
+	fileSvc := appContainer.FileServiceV3
 	cfg := appContainer.Config()
 
 	// 1. List Files
@@ -191,7 +190,6 @@ func registerFileTools(srv *mcpsrv.MCPServer, appContainer *app.App, wss *pkgapp
 			return mcp.NewToolResultError(err.Error()), nil
 		}
 
-		wss.BroadcastToUser(uid, code.Success.WithData(file).WithVault(vault), "FileSyncDelete")
 		fallback := fmt.Sprintf("Deleted file: %s", file.Path)
 		return mcp.NewToolResultStructured(mcpFileMutationOutput{
 			Vault:     vault,
@@ -236,17 +234,6 @@ func registerFileTools(srv *mcpsrv.MCPServer, appContainer *app.App, wss *pkgapp
 			return mcp.NewToolResultError(err.Error()), nil
 		}
 
-		wss.BroadcastToUser(uid, code.Success.WithData(dto.FileSyncRenameMessage{
-			Path:             newFile.Path,
-			PathHash:         newFile.PathHash,
-			ContentHash:      newFile.ContentHash,
-			Ctime:            newFile.Ctime,
-			Mtime:            newFile.Mtime,
-			Size:             newFile.Size,
-			UpdatedTimestamp: newFile.UpdatedTimestamp,
-			OldPath:          oldFile.Path,
-			OldPathHash:      oldFile.PathHash,
-		}).WithVault(vault), "FileSyncRename")
 		fallback := fmt.Sprintf("Renamed file from %s to %s", oldFile.Path, newFile.Path)
 		return mcp.NewToolResultStructured(mcpFileMutationOutput{
 			Vault:     vault,
@@ -288,7 +275,6 @@ func registerFileTools(srv *mcpsrv.MCPServer, appContainer *app.App, wss *pkgapp
 			return mcp.NewToolResultError(err.Error()), nil
 		}
 
-		wss.BroadcastToUser(uid, code.Success.WithData(file).WithVault(vault), "FileSyncUpdate")
 		fallback := fmt.Sprintf("Restored file: %s", file.Path)
 		return mcp.NewToolResultStructured(mcpFileMutationOutput{
 			Vault:     vault,
@@ -401,17 +387,6 @@ func registerFileTools(srv *mcpsrv.MCPServer, appContainer *app.App, wss *pkgapp
 		if err != nil {
 			return mcp.NewToolResultError(err.Error()), nil
 		}
-
-		// Broadcast WebSocket event to sync other clients // 广播 WebSocket 事件以同步其他客户端
-		wss.BroadcastToUser(uid, code.Success.WithData(dto.FileSyncModifyMessage{
-			Path:             fileDTO.Path,
-			PathHash:         fileDTO.PathHash,
-			ContentHash:      fileDTO.ContentHash,
-			Size:             fileDTO.Size,
-			Ctime:            fileDTO.Ctime,
-			Mtime:            fileDTO.Mtime,
-			UpdatedTimestamp: fileDTO.UpdatedTimestamp,
-		}).WithVault(vault), "FileSyncUpdate")
 
 		return mcp.NewToolResultStructured(mcpFileWriteOutput{
 			Vault: vault,

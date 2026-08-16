@@ -32,6 +32,7 @@ func newUserShare(db *gorm.DB, opts ...gen.DOOption) userShare {
 	_userShare.UID = field.NewInt64(tableName, "uid")
 	_userShare.ResType = field.NewString(tableName, "res_type")
 	_userShare.ResID = field.NewInt64(tableName, "res_id")
+	_userShare.ResIDV3 = field.NewString(tableName, "res_id_v3")
 	_userShare.Res = field.NewString(tableName, "res")
 	_userShare.Status = field.NewInt64(tableName, "status")
 	_userShare.ViewCount = field.NewInt64(tableName, "view_count")
@@ -55,6 +56,7 @@ type userShare struct {
 	UID          field.Int64
 	ResType      field.String
 	ResID        field.Int64
+	ResIDV3      field.String
 	Res          field.String
 	Status       field.Int64
 	ViewCount    field.Int64
@@ -84,6 +86,7 @@ func (u *userShare) updateTableName(table string) *userShare {
 	u.UID = field.NewInt64(table, "uid")
 	u.ResType = field.NewString(table, "res_type")
 	u.ResID = field.NewInt64(table, "res_id")
+	u.ResIDV3 = field.NewString(table, "res_id_v3")
 	u.Res = field.NewString(table, "res")
 	u.Status = field.NewInt64(table, "status")
 	u.ViewCount = field.NewInt64(table, "view_count")
@@ -119,11 +122,12 @@ func (u *userShare) GetFieldByName(fieldName string) (field.OrderExpr, bool) {
 }
 
 func (u *userShare) fillFieldMap() {
-	u.fieldMap = make(map[string]field.Expr, 13)
+	u.fieldMap = make(map[string]field.Expr, 14)
 	u.fieldMap["id"] = u.ID
 	u.fieldMap["uid"] = u.UID
 	u.fieldMap["res_type"] = u.ResType
 	u.fieldMap["res_id"] = u.ResID
+	u.fieldMap["res_id_v3"] = u.ResIDV3
 	u.fieldMap["res"] = u.Res
 	u.fieldMap["status"] = u.Status
 	u.fieldMap["view_count"] = u.ViewCount

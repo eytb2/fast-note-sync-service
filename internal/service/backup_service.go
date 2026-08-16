@@ -50,9 +50,8 @@ type BackupService interface {
 
 type backupService struct {
 	backupRepo     domain.BackupRepository
-	noteRepo       domain.NoteRepository
-	folderRepo     domain.FolderRepository
-	fileRepo       domain.FileRepository
+	fsRepo         domain.FsEntryRepository // v3 条目仓储（P5：备份数据源 = manifest + blob）
+	blobs          domain.BlobStore         // v3 blob 存储
 	vaultRepo      domain.VaultRepository
 	storageService StorageService
 	storageConfig  *config.StorageConfig
@@ -72,9 +71,8 @@ type backupService struct {
 // 创建 BackupService 实例
 func NewBackupService(
 	backupRepo domain.BackupRepository,
-	noteRepo domain.NoteRepository,
-	folderRepo domain.FolderRepository,
-	fileRepo domain.FileRepository,
+	fsRepo domain.FsEntryRepository,
+	blobs domain.BlobStore,
 	vaultRepo domain.VaultRepository,
 	storageService StorageService,
 	storageConfig *config.StorageConfig,
@@ -87,9 +85,8 @@ func NewBackupService(
 	ctx, cancel := context.WithCancel(context.Background())
 	s := &backupService{
 		backupRepo:     backupRepo,
-		noteRepo:       noteRepo,
-		folderRepo:     folderRepo,
-		fileRepo:       fileRepo,
+		fsRepo:         fsRepo,
+		blobs:          blobs,
 		vaultRepo:      vaultRepo,
 		storageService: storageService,
 		storageConfig:  storageConfig,
@@ -971,59 +968,68 @@ func (s *backupService) forEachResource(ctx context.Context, uid int64, v *domai
 		return ctx.Err()
 	}
 
-	// 1. Handle notes
-	// 1. 处理笔记
-	var notes []*domain.Note
-	var err error
-	if incremental && !lastRun.IsZero() {
-		notes, err = s.noteRepo.ListByUpdatedTimestamp(ctx, lastRun.UnixMilli(), v.ID, uid)
-	} else {
-		// List notes // 列出笔记
-		// List(ctx, vaultID, page, pageSize, uid, keyword, isDeleted, sort, isAsc, tag, folder)
-		notes, err = s.noteRepo.List(ctx, v.ID, 1, 1000000, uid, "", false, "", false, "", "", nil)
-	}
-
+	// v3 数据源（P5）：manifest 活跃条目（笔记+附件统一），内容自 blob 存储读取。
+	// 增量以条目 UpdatedAt（服务器提交时间）为过滤基准——重命名虽不改 Mtime
+	// 但会推进 UpdatedAt，路径变更得以同步。
+	entries, err := s.fsRepo.ListLive(ctx, v.ID, uid)
 	if err != nil {
 		return err
 	}
-	for _, n := range notes {
+
+	blobPath, hasBlobPath := s.blobs.(interface {
+		BlobPath(uid int64, hash string) string
+	})
+
+	for _, e := range entries {
 		if ctx.Err() != nil {
 			return ctx.Err()
 		}
-		path := n.Path
-		if filepath.Ext(path) != ".md" {
-			path += ".md"
+		if incremental && !lastRun.IsZero() && !e.UpdatedAt.After(lastRun) {
+			continue
 		}
-		if err := action(v, path, true, []byte(n.Content), int64(len(n.Content)), "", time.UnixMilli(n.Mtime), n.IsDeleted()); err != nil {
-			return err
-		}
-	}
 
-	// 2. Handle attachments
-	// 2. 处理附件
-	var files []*domain.File
-	if incremental && !lastRun.IsZero() {
-		files, err = s.fileRepo.ListByUpdatedTimestamp(ctx, lastRun.UnixMilli(), v.ID, uid)
-	} else {
-		files, err = s.fileRepo.List(ctx, v.ID, 1, 1000000, uid, "", false, "", "")
-	}
-
-	if err != nil {
-		return err
-	}
-	for _, f := range files {
-		if ctx.Err() != nil {
-			return ctx.Err()
-		}
-		var size int64
-		// Check file existence/size if not deleted // 如果未删除，检查文件是否存在/大小
-		if !f.IsDeleted() {
-			if info, _ := os.Stat(f.SavePath); info != nil {
-				size = info.Size()
+		var content []byte
+		var localPath string
+		if e.IsNote {
+			content, err = s.blobs.BlobReadAll(uid, e.BlobHash)
+			if err != nil {
+				s.logger.Warn("backup: note blob missing, skipping",
+					zap.String("path", e.Path), zap.Error(err))
+				continue
 			}
+		} else if hasBlobPath {
+			localPath = blobPath.BlobPath(uid, e.BlobHash)
+			if _, statErr := os.Stat(localPath); statErr != nil {
+				s.logger.Warn("backup: attachment blob missing, skipping", zap.String("path", e.Path))
+				continue
+			}
+		} else {
+			s.logger.Warn("backup: blob store has no physical path, skipping attachment", zap.String("path", e.Path))
+			continue
 		}
-		if err := action(v, f.Path, false, nil, size, f.SavePath, time.UnixMilli(f.Mtime), f.IsDeleted()); err != nil {
+
+		if err := action(v, e.Path, e.IsNote, content, e.Size, localPath, time.UnixMilli(e.Mtime), false); err != nil {
 			return err
+		}
+	}
+
+	// 增量时传播删除：上次运行之后落墓碑的条目 → 向备份目标发删除
+	// （全量模式清单本身只含活跃条目，无需处理墓碑）
+	if incremental && !lastRun.IsZero() {
+		tombs, err := s.fsRepo.ListDeleted(ctx, v.ID, uid)
+		if err != nil {
+			return err
+		}
+		for _, t := range tombs {
+			if ctx.Err() != nil {
+				return ctx.Err()
+			}
+			if !time.UnixMilli(t.DeletedAt).After(lastRun) {
+				continue
+			}
+			if err := action(v, t.Path, t.IsNote, nil, 0, "", time.UnixMilli(t.DeletedAt), true); err != nil {
+				return err
+			}
 		}
 	}
 

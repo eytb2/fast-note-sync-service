@@ -338,8 +338,6 @@ func NewServer(runEnv *runFlags) (*Server, error) {
 		}
 	})
 
-
-
 	// Start Cloudflare tunnel if enabled
 	if appConfig.Cloudflare.Enabled && appConfig.Cloudflare.Token != "" {
 		s.sc.Attach(func(done func(), closeSignal <-chan struct{}) {

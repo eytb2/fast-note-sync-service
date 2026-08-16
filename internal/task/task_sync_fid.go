@@ -53,17 +53,17 @@ func (t *SyncFIDTask) Run(ctx context.Context) error {
 			t.logger.Info("SyncFIDTask: syncing FID for vault", zap.Int64("uid", uid), zap.Int64("vaultID", vault.ID), zap.String("vaultName", vault.Name))
 
 			// 先清理重复目录
-			if err := t.app.FolderService.CleanDuplicateFolders(ctx, uid, vault.ID); err != nil {
+			if err := t.app.FolderServiceV3.CleanDuplicateFolders(ctx, uid, vault.ID); err != nil {
 				t.logger.Error("SyncFIDTask: failed to clean duplicate folders", zap.Int64("uid", uid), zap.Int64("vaultID", vault.ID), zap.Error(err))
 			}
 
 			// 清理重复笔记
-			if err := t.app.NoteService.CleanDuplicateNotes(ctx, uid, vault.ID); err != nil {
+			if err := t.app.NoteServiceV3.CleanDuplicateNotes(ctx, uid, vault.ID); err != nil {
 				t.logger.Error("SyncFIDTask: failed to clean duplicate notes", zap.Int64("uid", uid), zap.Int64("vaultID", vault.ID), zap.Error(err))
 			}
 
 			// 清理重复文件
-			if err := t.app.FileService.CleanDuplicateFiles(ctx, uid, vault.ID); err != nil {
+			if err := t.app.FileServiceV3.CleanDuplicateFiles(ctx, uid, vault.ID); err != nil {
 				t.logger.Error("SyncFIDTask: failed to clean duplicate files", zap.Int64("uid", uid), zap.Int64("vaultID", vault.ID), zap.Error(err))
 			}
 
@@ -72,7 +72,7 @@ func (t *SyncFIDTask) Run(ctx context.Context) error {
 				t.logger.Error("SyncFIDTask: failed to clean duplicate settings", zap.Int64("uid", uid), zap.Int64("vaultID", vault.ID), zap.Error(err))
 			}
 
-			if err := t.app.FolderService.SyncResourceFID(ctx, uid, vault.ID, nil, nil); err != nil {
+			if err := t.app.FolderServiceV3.SyncResourceFID(ctx, uid, vault.ID, nil, nil); err != nil {
 				t.logger.Error("SyncFIDTask: failed to sync FID for vault",
 					zap.Int64("uid", uid),
 					zap.Int64("vaultID", vault.ID),

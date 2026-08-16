@@ -51,7 +51,13 @@ func ShareAuthToken(shareService service.ShareService) gin.HandlerFunc {
 		// 确定当前请求想要访问的资源 ID 和类型
 		rid := c.Query("id")
 		if rid == "" {
+			rid = c.Query("entryId") // v3：条目 UUID（与 handler 的 entryId 参数对齐）
+		}
+		if rid == "" {
 			rid = c.PostForm("id")
+		}
+		if rid == "" {
+			rid = c.PostForm("entryId")
 		}
 
 		// Simple resource type determination logic: distinguish by route path

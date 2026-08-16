@@ -76,9 +76,8 @@ type gitSyncEnabledCacheEntry struct {
 
 type gitSyncService struct {
 	repo        domain.GitSyncRepository
-	noteRepo    domain.NoteRepository
-	folderRepo  domain.FolderRepository
-	fileRepo    domain.FileRepository
+	fsRepo      domain.FsEntryRepository // v3 条目仓储（P5：镜像数据源 = manifest + blob）
+	blobs       domain.BlobStore
 	vaultRepo   domain.VaultRepository
 	settingRepo domain.SettingRepository
 	gitConf     *appconfig.GitConfig
@@ -101,13 +100,12 @@ type gitSyncService struct {
 
 // NewGitSyncService creates a GitSyncService instance
 // NewGitSyncService 创建 GitSyncService 实例
-func NewGitSyncService(repo domain.GitSyncRepository, noteRepo domain.NoteRepository, folderRepo domain.FolderRepository, fileRepo domain.FileRepository, vaultRepo domain.VaultRepository, settingRepo domain.SettingRepository, gitConf *appconfig.GitConfig, logger *zap.Logger) GitSyncService {
+func NewGitSyncService(repo domain.GitSyncRepository, fsRepo domain.FsEntryRepository, blobs domain.BlobStore, vaultRepo domain.VaultRepository, settingRepo domain.SettingRepository, gitConf *appconfig.GitConfig, logger *zap.Logger) GitSyncService {
 	ctx, cancel := context.WithCancel(context.Background())
 	return &gitSyncService{
 		repo:        repo,
-		noteRepo:    noteRepo,
-		folderRepo:  folderRepo,
-		fileRepo:    fileRepo,
+		fsRepo:      fsRepo,
+		blobs:       blobs,
 		vaultRepo:   vaultRepo,
 		settingRepo: settingRepo,
 		gitConf:     gitConf,
@@ -839,48 +837,38 @@ func (s *gitSyncService) mirrorNotesToWorkspace(ctx context.Context, conf *domai
 
 	var actuallyChanged bool
 
-	for offset := 0; ; offset += gitSyncBatchSize {
-		notes, err := s.noteRepo.ListByUpdatedTimestampPage(ctx, ts, v.ID, conf.UID, offset, gitSyncBatchSize)
+	// v3 数据源（P5）：manifest 活跃条目 + 增量墓碑（传播删除）。
+	// 全量/增量统一走同一入口；条目量级与快照同阶（万级内存可容）。
+	entries, err := s.fsRepo.ListLive(ctx, v.ID, conf.UID)
+	if err != nil {
+		return false, err
+	}
+	if ts > 0 {
+		filtered := entries[:0]
+		for _, e := range entries {
+			if e.UpdatedAt.UnixMilli() > ts {
+				filtered = append(filtered, e)
+			}
+		}
+		entries = filtered
+
+		tombs, err := s.fsRepo.ListDeleted(ctx, v.ID, conf.UID)
 		if err != nil {
 			return false, err
 		}
-		if len(notes) == 0 {
-			break
-		}
-
-		batchChanged, err := s.processNotesBatch(notes, wsPath)
-		if err != nil {
-			return false, err
-		}
-		if batchChanged {
-			actuallyChanged = true
-		}
-
-		if len(notes) < gitSyncBatchSize {
-			break
+		for _, t := range tombs {
+			if t.DeletedAt > ts {
+				entries = append(entries, t) // 墓碑以 Deleted 标志混入，批次内转删除
+			}
 		}
 	}
 
-	for offset := 0; ; offset += gitSyncBatchSize {
-		files, err := s.fileRepo.ListByUpdatedTimestampPage(ctx, ts, v.ID, conf.UID, offset, gitSyncBatchSize)
-		if err != nil {
-			return false, err
-		}
-		if len(files) == 0 {
-			break
-		}
-
-		batchChanged, err := s.processFilesBatch(files, conf, wsPath)
-		if err != nil {
-			return false, err
-		}
-		if batchChanged {
-			actuallyChanged = true
-		}
-
-		if len(files) < gitSyncBatchSize {
-			break
-		}
+	batchChanged, err := s.processEntriesBatch(ctx, entries, conf, wsPath)
+	if err != nil {
+		return false, err
+	}
+	if batchChanged {
+		actuallyChanged = true
 	}
 
 	if conf.IncludeConfig && len(conf.ConfigSyncRules) > 0 {
@@ -990,17 +978,19 @@ func (s *gitSyncService) processSettingsBatch(settings []*domain.Setting, conf *
 	return actuallyChanged, nil
 }
 
-func (s *gitSyncService) processNotesBatch(notes []*domain.Note, wsPath string) (bool, error) {
+// processEntriesBatch v3 条目批次镜像：墓碑 → 工作区删除；笔记 → blob 内容比对写入；
+// 附件 → blob 物理路径拷贝。返回是否产生了工作区变更。
+func (s *gitSyncService) processEntriesBatch(ctx context.Context, entries []*domain.FsEntry, conf *domain.GitSyncConfig, wsPath string) (bool, error) {
 	var actuallyChanged bool
 
-	for _, n := range notes {
-		targetPath := n.Path
-		if filepath.Ext(targetPath) == "" {
-			targetPath += ".md"
-		}
-		fullPath := filepath.Join(wsPath, targetPath)
+	blobPath, hasBlobPath := s.blobs.(interface {
+		BlobPath(uid int64, hash string) string
+	})
 
-		if n.Action == domain.NoteActionDelete {
+	for _, e := range entries {
+		fullPath := filepath.Join(wsPath, e.Path)
+
+		if e.Deleted {
 			if _, err := os.Stat(fullPath); err == nil {
 				_ = os.Remove(fullPath)
 				actuallyChanged = true
@@ -1010,66 +1000,56 @@ func (s *gitSyncService) processNotesBatch(notes []*domain.Note, wsPath string) 
 
 		_ = os.MkdirAll(filepath.Dir(fullPath), 0755)
 
-		// Check if content is different before writing
-		if oldFile, err := os.Open(fullPath); err == nil {
-			defer oldFile.Close()
-			// For notes, we still compare strings as they are typically small
-			// and this maintains simple logic for .md files.
-			if oldContent, err := io.ReadAll(oldFile); err == nil {
-				if string(oldContent) == n.Content {
-					continue // Skip writing if content is identical
+		if e.IsNote {
+			content, err := s.blobs.BlobReadAll(conf.UID, e.BlobHash)
+			if err != nil {
+				s.logger.Warn("Note blob missing, skipping mirror",
+					zap.Int64("uid", conf.UID), zap.Int64("vaultId", conf.VaultID), zap.String("path", e.Path))
+				continue
+			}
+
+			// Skip writing if content is identical (notes are small; string compare)
+			// 内容一致则跳过写入（笔记较小，字符串比对）
+			if oldFile, err := os.Open(fullPath); err == nil {
+				oldContent, rerr := io.ReadAll(oldFile)
+				oldFile.Close()
+				if rerr == nil && string(oldContent) == string(content) {
+					continue
 				}
 			}
-		}
 
-		if err := os.WriteFile(fullPath, []byte(n.Content), 0644); err != nil {
-			return false, fmt.Errorf("failed to write note to workspace: %w", err)
-		} else {
+			if err := os.WriteFile(fullPath, content, 0644); err != nil {
+				return false, fmt.Errorf("failed to write note to workspace: %w", err)
+			}
 			actuallyChanged = true
-			if n.Mtime > 0 {
-				mt := time.UnixMilli(n.Mtime)
+			if e.Mtime > 0 {
+				mt := time.UnixMilli(e.Mtime)
 				_ = os.Chtimes(fullPath, mt, mt)
 			}
-		}
-	}
-
-	return actuallyChanged, nil
-}
-
-func (s *gitSyncService) processFilesBatch(files []*domain.File, conf *domain.GitSyncConfig, wsPath string) (bool, error) {
-	var actuallyChanged bool
-
-	for _, f := range files {
-		fullPath := filepath.Join(wsPath, f.Path)
-
-		if f.Action == domain.FileActionDelete {
-			if _, err := os.Stat(fullPath); err == nil {
-				_ = os.Remove(fullPath)
-				actuallyChanged = true
-			}
 			continue
 		}
 
-		_ = os.MkdirAll(filepath.Dir(fullPath), 0755)
-
-		// Add physical file existence check to prevent source not existing from causing copyFileIfDifferent error interruption
-		// 增加物理文件存在性检查，防止 src 不存在导致 copyFileIfDifferent 报错中断
-		if _, err := os.Stat(f.SavePath); os.IsNotExist(err) {
-			s.logger.Warn("Attachment file not found in storage, skipping mirror for this file",
+		// Attachment: mirror from the physical blob path (skip missing)
+		// 附件：自 blob 物理路径镜像（缺失则跳过）
+		if !hasBlobPath {
+			continue
+		}
+		src := blobPath.BlobPath(conf.UID, e.BlobHash)
+		if _, err := os.Stat(src); os.IsNotExist(err) {
+			s.logger.Warn("Attachment blob not found, skipping mirror",
 				zap.Int64("uid", conf.UID),
 				zap.Int64("vaultId", conf.VaultID),
-				zap.String("path", f.Path),
-				zap.String("savePath", f.SavePath))
+				zap.String("path", e.Path))
 			continue
 		}
 
-		copyChanged, err := s.copyFileIfDifferent(f.SavePath, fullPath)
+		copyChanged, err := s.copyFileIfDifferent(src, fullPath)
 		if err != nil {
 			return false, fmt.Errorf("failed to copy attachment to workspace: %w", err)
 		} else if copyChanged {
 			actuallyChanged = true
-			if f.Mtime > 0 {
-				mt := time.UnixMilli(f.Mtime)
+			if e.Mtime > 0 {
+				mt := time.UnixMilli(e.Mtime)
 				_ = os.Chtimes(fullPath, mt, mt)
 			}
 		}

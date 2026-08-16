@@ -70,7 +70,7 @@ func (h *FileHandler) List(c *gin.Context) {
 	ctx := c.Request.Context()
 
 	pager := pkgapp.NewPager(c)
-	fileSvc := h.App.GetFileService(h.getClientInfo(c))
+	fileSvc := h.App.GetFileServiceV3(h.getClientInfo(c))
 	files, count, err := fileSvc.List(ctx, uid, params, pager)
 	if err != nil {
 		h.logError(ctx, "FileHandler.List", err)
@@ -118,7 +118,7 @@ func (h *FileHandler) GetInfo(c *gin.Context) {
 	// Get request context
 	ctx := c.Request.Context()
 
-	fileSvc := h.App.GetFileService(h.getClientInfo(c))
+	fileSvc := h.App.GetFileServiceV3(h.getClientInfo(c))
 	savePath, contentType, mtime, etag, fileName, err := fileSvc.GetContentInfo(ctx, uid, params)
 	if err != nil {
 		h.logError(ctx, "FileHandler.GetContent", err)
@@ -197,7 +197,7 @@ func (h *FileHandler) Delete(c *gin.Context) {
 	// 获取请求上下文
 	ctx := c.Request.Context()
 
-	fileSvc := h.App.GetFileService(h.getClientInfo(c))
+	fileSvc := h.App.GetFileServiceV3(h.getClientInfo(c))
 	// Execute deletion
 	// 执行删除
 	file, err := fileSvc.Delete(ctx, uid, params)
@@ -209,15 +209,6 @@ func (h *FileHandler) Delete(c *gin.Context) {
 
 	response.ToResponse(code.Success.WithData(file))
 
-	h.WSS.BroadcastToUser(uid, code.Success.WithData(
-		dto.FileSyncDeleteMessage{
-			Path:     file.Path,
-			PathHash: file.PathHash,
-			Ctime:    file.Ctime,
-			Mtime:    file.Mtime,
-			Size:     file.Size,
-		},
-	).WithVault(params.Vault), "FileSyncDelete")
 }
 
 // Get retrieves file metadata
@@ -261,7 +252,7 @@ func (h *FileHandler) Get(c *gin.Context) {
 	// 获取请求上下文
 	ctx := c.Request.Context()
 
-	fileSvc := h.App.GetFileService(h.getClientInfo(c))
+	fileSvc := h.App.GetFileServiceV3(h.getClientInfo(c))
 	file, err := fileSvc.Get(ctx, uid, params)
 	if err != nil {
 		h.logError(ctx, "FileHandler.Get", err)
@@ -318,7 +309,7 @@ func (h *FileHandler) Restore(c *gin.Context) {
 	// 获取请求上下文
 	ctx := c.Request.Context()
 
-	fileSvc := h.App.GetFileService(h.getClientInfo(c))
+	fileSvc := h.App.GetFileServiceV3(h.getClientInfo(c))
 
 	// Execute restore
 	// 执行恢复
@@ -330,7 +321,6 @@ func (h *FileHandler) Restore(c *gin.Context) {
 	}
 
 	response.ToResponse(code.Success.WithData(file))
-	h.WSS.BroadcastToUser(uid, code.Success.WithData(file).WithVault(params.Vault), "FileSyncUpdate")
 }
 
 // logError records error log, including Trace ID
@@ -371,7 +361,7 @@ func (h *FileHandler) RecycleClear(c *gin.Context) {
 	}
 
 	ctx := c.Request.Context()
-	fileSvc := h.App.GetFileService(h.getClientInfo(c))
+	fileSvc := h.App.GetFileServiceV3(h.getClientInfo(c))
 	if err := fileSvc.RecycleClear(ctx, uid, params); err != nil {
 		h.logError(ctx, "FileHandler.RecycleClear", err)
 		apperrors.ErrorResponse(c, err)
@@ -431,9 +421,9 @@ func (h *FileHandler) Rename(c *gin.Context) {
 	// 获取请求上下文
 	ctx := c.Request.Context()
 
-	fileSvc := h.App.GetFileService(h.getClientInfo(c))
+	fileSvc := h.App.GetFileServiceV3(h.getClientInfo(c))
 
-	oldFile, newFile, err := fileSvc.Rename(ctx, uid, params)
+	_, newFile, err := fileSvc.Rename(ctx, uid, params)
 	if err != nil {
 		h.logError(ctx, "FileHandler.Rename", err)
 		apperrors.ErrorResponse(c, err)
@@ -443,18 +433,6 @@ func (h *FileHandler) Rename(c *gin.Context) {
 	response.ToResponse(code.Success.WithData(newFile))
 
 	// Broadcast WebSocket event: FileSyncRename
-	// 广播 WebSocket 事件: 文件同步重命名
-	h.WSS.BroadcastToUser(uid, code.Success.WithData(dto.FileSyncRenameMessage{
-		Path:             newFile.Path,
-		PathHash:         newFile.PathHash,
-		ContentHash:      newFile.ContentHash,
-		Ctime:            newFile.Ctime,
-		Mtime:            newFile.Mtime,
-		Size:             newFile.Size,
-		UpdatedTimestamp: newFile.UpdatedTimestamp,
-		OldPath:          oldFile.Path,
-		OldPathHash:      oldFile.PathHash,
-	}).WithVault(params.Vault), "FileSyncRename")
 }
 
 // Upload uploads a file
@@ -552,7 +530,7 @@ func (h *FileHandler) Upload(c *gin.Context) {
 	}
 
 	ctx := c.Request.Context()
-	fileSvc := h.App.GetFileService(h.getClientInfo(c))
+	fileSvc := h.App.GetFileServiceV3(h.getClientInfo(c))
 	_, fileDTO, err := fileSvc.UpdateOrCreate(ctx, uid, params, false)
 	if err != nil {
 		h.logError(ctx, "FileHandler.Upload.UpdateOrCreate", err)
@@ -563,16 +541,4 @@ func (h *FileHandler) Upload(c *gin.Context) {
 	response.ToResponse(code.Success.WithData(fileDTO))
 
 	// Broadcast WebSocket event: FileSyncUpdate
-	// 广播 WebSocket 事件: 文件同步更新
-	h.WSS.BroadcastToUser(uid, code.Success.WithData(
-		dto.FileSyncModifyMessage{
-			Path:             fileDTO.Path,
-			PathHash:         fileDTO.PathHash,
-			ContentHash:      fileDTO.ContentHash,
-			Size:             fileDTO.Size,
-			Ctime:            fileDTO.Ctime,
-			Mtime:            fileDTO.Mtime,
-			UpdatedTimestamp: fileDTO.UpdatedTimestamp,
-		},
-	).WithVault(input.Vault), "FileSyncUpdate")
 }

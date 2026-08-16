@@ -46,12 +46,12 @@ func TestBuildSharePathCandidates(t *testing.T) {
 // TestRewriteMarkdownImageLinks 验证 markdown 图片链接被重写为分享 URL。
 func TestRewriteMarkdownImageLinks(t *testing.T) {
 	content := `![demo](./images/demo.png "title")`
-	fileRefs := map[string]*domain.File{
-		"./images/demo.png": {ID: 42},
+	fileRefs := map[string]*domain.FsEntry{
+		"./images/demo.png": {ID: "uuid-42"},
 	}
 
 	rewritten := rewriteMarkdownImageLinks(content, fileRefs, "share-token", "pwd")
-	expected := `![demo](/api/share/file?id=42&share_token=share-token&password=pwd "title")`
+	expected := `![demo](/api/share/file?id=uuid-42&share_token=share-token&password=pwd "title")`
 
 	assert.Equal(t, expected, rewritten, "image links should be rewritten to share API URLs")
 }

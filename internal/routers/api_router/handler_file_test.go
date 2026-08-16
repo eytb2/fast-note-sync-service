@@ -38,7 +38,7 @@ func newFileTestContext(method, url, body string, uid int64) (*gin.Context, *htt
 
 func newTestFileHandler(fileSvc *svcmocks.MockFileService) *FileHandler {
 	testApp := app.NewTestApp(&app.Services{
-		FileService: fileSvc,
+		FileServiceV3: fileSvc,
 	})
 	fileSvc.On("WithClient", mock.Anything, mock.Anything, mock.Anything).Return(fileSvc)
 	wss := pkgapp.NewWebsocketServer(pkgapp.WSConfig{}, testApp)

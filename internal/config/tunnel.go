@@ -1,7 +1,5 @@
 package config
 
-
-
 // CloudflareConfig cloudflare configuration
 // CloudflareConfig cloudflare 配置
 type CloudflareConfig struct {

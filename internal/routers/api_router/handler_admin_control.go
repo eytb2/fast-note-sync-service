@@ -1167,30 +1167,15 @@ func (h *AdminControlHandler) Upgrade(c *gin.Context) {
 
 	versionRaw := strings.TrimPrefix(version, "v")
 
-	// Determine download URL
-	// At upgrade time, probe both sources in auto mode to pick the best one
-	// rather than relying on the cached background-task result.
-	// 确定下载地址：auto 模式在升级时主动探测两源，不依赖后台任务缓存。
-	useGitHub := checkInfo.GithubAvailable
-	if cfg.App.PullSource == "auto" {
-		snap := h.App.SourceSelector().Probe(c.Request.Context())
-		useGitHub = snap.UseGitHub
-	}
-
 	goos := runtime.GOOS
 	goarch := runtime.GOARCH
 
 	// Example: fast-note-sync-service-2.0.10-linux-amd64.tar.gz
 	fileName := fmt.Sprintf("fast-note-sync-service-%s-%s-%s.tar.gz", versionRaw, goos, goarch)
-	downloadURL := ""
-	if useGitHub {
-		// GitHub releases/download/[tag]/[filename]
-		// Based on user feedback: URL should NOT have 'v' in the tag part if the tag itself doesn't have it
-		downloadURL = fmt.Sprintf("https://github.com/haierkeys/fast-note-sync-service/releases/download/%s/%s", versionRaw, fileName)
-	} else {
-		// CNB download URL format
-		downloadURL = fmt.Sprintf("https://cnb.cool/haierkeys/fast-note-sync-service/-/releases/download/%s/%s", versionRaw, fileName)
-	}
+	// 唯一升级源：自建 GitHub 仓库（eytb2）。
+	// Single upgrade source: the self-hosted GitHub repo (eytb2).
+	// Based on user feedback: URL should NOT have 'v' in the tag part if the tag itself doesn't have it
+	downloadURL := fmt.Sprintf("https://github.com/eytb2/fast-note-sync-service/releases/download/%s/%s", versionRaw, fileName)
 
 	h.App.Logger().Info("Starting upgrade download", zap.String("url", downloadURL), zap.String("version", versionRaw))
 

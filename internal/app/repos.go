@@ -24,6 +24,13 @@ type Repositories struct {
 	AuthTokenRepo    domain.AuthTokenRepository
 	AuthTokenLogRepo domain.AuthTokenLogRepository
 	OIDCIdentityRepo domain.OIDCIdentityRepository
+
+	// git 式快照同步（WS v3）数据层
+	FsEntryRepo   domain.FsEntryRepository
+	ManifestRepo  domain.VaultManifestRepository
+	EntryHistRepo domain.EntryHistoryRepository
+	FsIdMapRepo   domain.FsIdMapRepository
+	BlobStore     domain.BlobStore
 }
 
 // initRepositories initializes all repositories
@@ -46,5 +53,11 @@ func initRepositories(d *dao.Dao) *Repositories {
 		AuthTokenRepo:    dao.NewAuthTokenRepository(d),
 		AuthTokenLogRepo: dao.NewAuthTokenLogRepository(d),
 		OIDCIdentityRepo: dao.NewOIDCIdentityRepository(d),
+
+		FsEntryRepo:   dao.NewFsEntryRepository(d),
+		ManifestRepo:  dao.NewVaultManifestRepository(d),
+		EntryHistRepo: dao.NewEntryHistoryRepository(d),
+		FsIdMapRepo:   dao.NewFsIdMapRepository(d),
+		BlobStore:     d,
 	}
 }

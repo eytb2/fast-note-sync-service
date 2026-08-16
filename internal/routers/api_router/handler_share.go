@@ -106,7 +106,12 @@ func (h *ShareHandler) NoteGet(c *gin.Context) {
 	}
 
 	ctx := c.Request.Context()
-	noteDTO, err := h.App.ShareService.GetSharedNote(ctx, shareToken, params.ID, params.Password)
+	// v3: rid 为条目 UUID（entryId）；旧整型 id 仅兼容透传
+	rid := params.EntryID
+	if rid == "" {
+		rid = params.ID // 分享页透传的 rid（v3=条目 UUID；旧整型 rid 为数字串）
+	}
+	noteDTO, err := h.App.ShareService.GetSharedNote(ctx, shareToken, rid, params.Password)
 	if err != nil {
 		if cObj, ok := err.(*code.Code); ok {
 			response.ToResponse(cObj)
@@ -150,7 +155,11 @@ func (h *ShareHandler) FileGet(c *gin.Context) {
 	}
 
 	ctx := c.Request.Context()
-	savePath, contentType, mtime, etag, fileName, err := h.App.ShareService.GetSharedFileInfo(ctx, shareToken, params.ID, params.Password)
+	rid := params.EntryID
+	if rid == "" {
+		rid = params.ID // 分享页透传的 rid（v3=条目 UUID；旧整型 rid 为数字串）
+	}
+	savePath, contentType, mtime, etag, fileName, err := h.App.ShareService.GetSharedFileInfo(ctx, shareToken, rid, params.Password)
 
 	if err != nil {
 		if cObj, ok := err.(*code.Code); ok {
@@ -203,7 +212,7 @@ func (h *ShareHandler) Query(c *gin.Context) {
 	uid := pkgapp.GetUID(c)
 	ctx := c.Request.Context()
 
-	share, err := h.App.ShareService.GetShareByPath(ctx, uid, params.Vault, params.PathHash)
+	share, err := h.App.ShareService.GetShareByPath(ctx, uid, params.Vault, params.Path)
 	if err != nil {
 		if cObj, ok := err.(*code.Code); ok {
 			response.ToResponse(cObj)
@@ -268,7 +277,7 @@ func (h *ShareHandler) Cancel(c *gin.Context) {
 	if params.ID > 0 {
 		err = h.App.ShareService.StopShare(ctx, uid, params.ID)
 	} else if params.Vault != "" && params.PathHash != "" {
-		err = h.App.ShareService.StopShareByPath(ctx, uid, params.Vault, params.PathHash)
+		err = h.App.ShareService.StopShareByPath(ctx, uid, params.Vault, params.Path)
 	} else {
 		response.ToResponse(code.ErrorInvalidParams.WithDetails("Either ID or Vault + PathHash must be provided"))
 		return

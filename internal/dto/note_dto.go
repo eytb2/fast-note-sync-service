@@ -21,30 +21,18 @@ type NoteUpdateCheckRequest struct {
 // NoteModifyOrCreateRequest Request parameters for creating or modifying a note
 // 用于创建或修改笔记的请求参数
 type NoteModifyOrCreateRequest struct {
-	Vault           string `json:"vault" form:"vault" binding:"required" example:"MyVault"`      // Vault name // 保险库名称
-	Path            string `json:"path" form:"path" binding:"required" example:"ReadMe.md"`      // Note path // 笔记路径
-	PathHash        string `json:"pathHash" form:"pathHash" example:"hash123"`                   // Path hash // 路径哈希
-	BaseHash        string `json:"baseHash" form:"baseHash" binding:"" example:"bhash789"`       // Base hash for sync // 同步基准哈希
-	BaseHashMissing bool   `json:"baseHashMissing" form:"baseHashMissing" example:"false"`       // Marks if baseHash is unavailable // 标记基准哈希是否缺失
-	Content         string `json:"content" form:"content" binding:"" example:"# Hello World"`    // Note content // 笔记内容
-	ContentHash     string `json:"contentHash" form:"contentHash" binding:"" example:"chash012"` // Content hash // 内容哈希
-	Ctime           int64  `json:"ctime" form:"ctime" example:"1700000000"`                      // Creation timestamp // 创建时间戳
-	Mtime           int64  `json:"mtime" form:"mtime" example:"1700000000"`                      // Modification timestamp // 修改时间戳
-	CreateOnly      bool   `json:"createOnly" form:"createOnly" example:"false"`                 // If true, fail if note already exists // 如果为 true，笔记已存在则失败
+	Vault              string `json:"vault" form:"vault" binding:"required" example:"MyVault"`      // Vault name // 保险库名称
+	Path               string `json:"path" form:"path" binding:"required" example:"ReadMe.md"`      // Note path // 笔记路径
+	PathHash           string `json:"pathHash" form:"pathHash" example:"hash123"`                   // Path hash // 路径哈希
+	BaseHash           string `json:"baseHash" form:"baseHash" binding:"" example:"bhash789"`       // Base hash for sync // 同步基准哈希
+	BaseHashMissing    bool   `json:"baseHashMissing" form:"baseHashMissing" example:"false"`       // Marks if baseHash is unavailable // 标记基准哈希是否缺失
+	Content            string `json:"content" form:"content" binding:"" example:"# Hello World"`    // Note content // 笔记内容
+	ContentHash        string `json:"contentHash" form:"contentHash" binding:"" example:"chash012"` // Content hash // 内容哈希
+	Ctime              int64  `json:"ctime" form:"ctime" example:"1700000000"`                      // Creation timestamp // 创建时间戳
+	Mtime              int64  `json:"mtime" form:"mtime" example:"1700000000"`                      // Modification timestamp // 修改时间戳
+	CreateOnly         bool   `json:"createOnly" form:"createOnly" example:"false"`                 // If true, fail if note already exists // 如果为 true，笔记已存在则失败
 	Context            string `json:"context" form:"context" example:"ctx123"`                      // Context // 同步上下文
 	IsConflictResolved bool   `json:"isConflictResolved" form:"isConflictResolved" example:"false"` // Marks if conflict is resolved manually // 标记是否为手动解决冲突
-}
-
-// ContentModifyRequest Request parameters for modifying content only
-// 专用于只修改内容的请求参数
-type ContentModifyRequest struct {
-	Vault       string `json:"vault" form:"vault" binding:"required" example:"MyVault"`              // Vault name // 保险库名称
-	Path        string `json:"path" form:"path" binding:"required" example:"ReadMe.md"`              // Note path // 笔记路径
-	PathHash    string `json:"pathHash" form:"pathHash" binding:"required" example:"hash123"`        // Path hash // 路径哈希
-	Content     string `json:"content" form:"content" binding:"required" example:"Updated content"`  // Note content // 笔记内容
-	ContentHash string `json:"contentHash" form:"contentHash" binding:"required" example:"chash456"` // Content hash // 内容哈希
-	Ctime       int64  `json:"ctime" form:"ctime" binding:"required" example:"1700000000"`           // Creation timestamp // 创建时间戳
-	Mtime       int64  `json:"mtime" form:"mtime" binding:"required" example:"1700000000"`           // Modification timestamp // 修改时间戳
 }
 
 // NoteDeleteRequest Parameters required for deleting a note
@@ -113,16 +101,6 @@ type NoteReplaceRequest struct {
 	FailIfNoMatch bool   `json:"failIfNoMatch" form:"failIfNoMatch" example:"true"`       // Fail if no match found // 若无匹配则失败
 }
 
-// NoteMoveRequest parameters for moving a note
-// NoteMoveRequest 移动笔记请求参数
-type NoteMoveRequest struct {
-	Vault       string `json:"vault" form:"vault" binding:"required" example:"MyVault"`                      // Vault name // 保险库名称
-	Path        string `json:"path" form:"path" binding:"required" example:"Source.md"`                      // Current path // 当前路径
-	PathHash    string `json:"pathHash" form:"pathHash" example:"src_hash123"`                               // Current path hash // 当前路径哈希
-	Destination string `json:"destination" form:"destination" binding:"required" example:"Folder/Source.md"` // Destination path // 目标路径
-	Overwrite   bool   `json:"overwrite" form:"overwrite" example:"false"`                                   // Overwrite existing // 覆盖现有
-}
-
 // NoteLinkQueryRequest parameters for backlinks/outlinks query
 // NoteLinkQueryRequest 反向链接/出链查询请求参数
 type NoteLinkQueryRequest struct {
@@ -131,41 +109,12 @@ type NoteLinkQueryRequest struct {
 	PathHash string `json:"pathHash" form:"pathHash" example:"hash123"`              // Path hash // 路径哈希
 }
 
-// NoteSyncCheckRequest Parameters for checking synchronization of a single record
-// NoteSyncCheckRequest 同步检查单条记录的参数
-type NoteSyncCheckRequest struct {
-	Path        string `json:"path" form:"path" example:"ReadMe.md"`                          // Note path // 笔记路径
-	PathHash    string `json:"pathHash" form:"pathHash" binding:"required" example:"hash123"` // Path hash // 路径哈希
-	ContentHash string `json:"contentHash" form:"contentHash" binding:"" example:"chash456"`  // Content hash // 内容哈希
-	Mtime       int64  `json:"mtime" form:"mtime" binding:"required" example:"1700000000"`    // Modification timestamp // 修改时间戳
-	Ctime       int64  `json:"ctime" form:"ctime" example:"1700000000"`                       // Creation timestamp // 创建时间戳
-}
-
-// NoteSyncDelNote parameters for deleting a note during sync
-// 同步删除笔记参数
-type NoteSyncDelNote struct {
-	Path     string `json:"path" form:"path" binding:"required" example:"DeletedNote.md"`   // Note path // 笔记路径
-	PathHash string `json:"pathHash" form:"pathHash" binding:"required" example:"dhash789"` // Path hash // 路径哈希
-}
-
 // NoteSyncRequest Synchronization request body
 // NoteSyncRequest 同步请求主体
 type NoteSyncRequest struct {
-	Context      string                 `json:"context" form:"context" example:"task123"`                // Context // 上下文
-	Vault        string                 `json:"vault" form:"vault" binding:"required" example:"MyVault"` // Vault name // 保险库名称
-	LastTime     int64                  `json:"lastTime" form:"lastTime" example:"1700000000"`           // Last sync time // 最后同步时间
-	BatchIndex   int                    `json:"batchIndex" form:"batchIndex" example:"0"`               // Current batch index (0-based) // 当前批次索引（0 起）
-	TotalBatches int                    `json:"totalBatches" form:"totalBatches" example:"1"`           // Total batch count // 总批次数
-	Notes        []NoteSyncCheckRequest `json:"notes" form:"notes"`                                      // Notes to check // 待检查笔记列表
-	DelNotes     []NoteSyncDelNote      `json:"delNotes" form:"delNotes"`                                // Notes to delete // 待删除笔记列表
-	MissingNotes []NoteSyncDelNote      `json:"missingNotes" form:"missingNotes"`                        // Missing notes // 缺失笔记列表
-}
-
-// ModifyMtimeFilesRequest Request for querying modified files by mtime
-// ModifyMtimeFilesRequest 用于按 mtime 查询修改文件
-type ModifyMtimeFilesRequest struct {
-	Vault string `json:"vault" form:"vault" binding:"required" example:"MyVault"` // Vault name // 保险库名称
-	Mtime int64  `json:"mtime" form:"mtime" example:"1700000000"`                 // Threshold modification timestamp // 修改时间戳阈值
+	Context  string `json:"context" form:"context" example:"task123"`                // Context // 上下文
+	Vault    string `json:"vault" form:"vault" binding:"required" example:"MyVault"` // Vault name // 保险库名称
+	LastTime int64  `json:"lastTime" form:"lastTime" example:"1700000000"`           // Last sync time // 最后同步时间
 }
 
 // NoteGetRequest Request parameters for retrieving a single note
@@ -222,7 +171,7 @@ type NoteHistoryRestoreRequest struct {
 // NoteDTO Note data transfer object
 // NoteDTO 笔记数据传输对象
 type NoteDTO struct {
-	ID               int64      `json:"id" form:"id"`                    // Note ID // 笔记 ID
+	ID               int64      `json:"id" form:"id"`                   // Note ID // 笔记 ID
 	Action           string     `json:"-" form:"action"`                // Action // 动作
 	Path             string     `json:"path" form:"path"`               // Note path // 笔记路径
 	PathHash         string     `json:"pathHash" form:"pathHash"`       // Path hash // 路径哈希
@@ -236,6 +185,7 @@ type NoteDTO struct {
 	ClientType       string     `json:"clientType"`                     // Client type // 客户端类型
 	ClientVersion    string     `json:"clientVersion"`                  // Client version // 客户端版本
 	UpdatedTimestamp int64      `json:"lastTime"`                       // Record update timestamp // 记录更新时间戳
+	EntryID          string     `json:"entryId,omitempty"`              // v3 entry UUID (fs_entry.id) // v3 条目 UUID
 	UpdatedAt        timex.Time `json:"updatedAt"`                      // Updated at time // 更新时间
 	CreatedAt        timex.Time `json:"createdAt"`                      // Created at time // 创建时间
 }
@@ -243,7 +193,7 @@ type NoteDTO struct {
 // NoteNoContentDTO Note DTO without content
 // NoteNoContentDTO 不包含内容的笔记 DTO
 type NoteNoContentDTO struct {
-	ID               int64      `json:"id" form:"id"`                      // Note ID // 笔记 ID
+	ID               int64      `json:"id" form:"id"`                     // Note ID // 笔记 ID
 	Action           string     `json:"-" form:"action"`                  // Action // 动作
 	Path             string     `json:"path" form:"path"`                 // Note path // 笔记路径
 	PathHash         string     `json:"pathHash" form:"pathHash"`         // Path hash // 路径哈希
@@ -255,6 +205,7 @@ type NoteNoContentDTO struct {
 	ClientType       string     `json:"clientType"`                       // Client type // 客户端类型
 	ClientVersion    string     `json:"clientVersion"`                    // Client version // 客户端版本
 	UpdatedTimestamp int64      `json:"lastTime" form:"updatedTimestamp"` // Record update timestamp // 记录更新时间戳
+	EntryID          string     `json:"entryId,omitempty"`                // v3 entry UUID (fs_entry.id) // v3 条目 UUID
 	UpdatedAt        timex.Time `json:"updatedAt"`                        // Updated at time // 更新时间
 	CreatedAt        timex.Time `json:"createdAt"`                        // Created at time // 创建时间
 }
@@ -297,9 +248,10 @@ type NoteWithFileLinksResponse struct {
 type NoteHistoryDTO struct {
 	ID            int64                 `json:"id" form:"id"`                       // History entry ID // 历史项 ID
 	NoteID        int64                 `json:"noteId" form:"noteId"`               // Associated note ID // 笔记 ID
+	EntryID       string                `json:"entryId,omitempty"`                  // v3 entry UUID (fs_entry.id) // v3 条目 UUID
 	VaultID       int64                 `json:"vaultId" form:"vaultId"`             // Associated vault ID // 保险库 ID
 	Path          string                `json:"path" form:"path"`                   // Note path at that time // 当时的笔记路径
-	Diffs         []diffmatchpatch.Diff `json:"diffs" swaggertype:"array,object"`    // Text differences // 文本差异内容
+	Diffs         []diffmatchpatch.Diff `json:"diffs" swaggertype:"array,object"`   // Text differences // 文本差异内容
 	Content       string                `json:"content" form:"content"`             // Full historical content // 完整历史内容
 	ContentHash   string                `json:"contentHash" form:"contentHash"`     // Content hash // 内容哈希
 	ClientName    string                `json:"clientName" form:"clientName"`       // Client that made changes // 产生变更的客户端
@@ -314,6 +266,7 @@ type NoteHistoryDTO struct {
 type NoteHistoryNoContentDTO struct {
 	ID            int64      `json:"id" form:"id"`                       // History entry ID // 历史项 ID
 	NoteID        int64      `json:"noteId" form:"noteId"`               // Associated note ID // 笔记 ID
+	EntryID       string     `json:"entryId,omitempty"`                  // v3 entry UUID (fs_entry.id) // v3 条目 UUID
 	VaultID       int64      `json:"vaultId" form:"vaultId"`             // Associated vault ID // 保险库 ID
 	Path          string     `json:"path" form:"path"`                   // Note path at that time // 当时的笔记路径
 	ClientName    string     `json:"clientName" form:"clientName"`       // Client that made changes // 产生变更的客户端

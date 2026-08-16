@@ -72,7 +72,7 @@ func (h *NoteHandler) Get(c *gin.Context) {
 	// 获取请求上下文
 	ctx := c.Request.Context()
 
-	noteSvc := h.App.GetNoteService(h.getClientInfo(c))
+	noteSvc := h.App.GetNoteServiceV3(h.getClientInfo(c))
 	note, err := noteSvc.Get(ctx, uid, params)
 	if err != nil {
 		h.logError(ctx, "NoteHandler.Get", err)
@@ -82,7 +82,7 @@ func (h *NoteHandler) Get(c *gin.Context) {
 
 	// Parse ![[ ]] tags in content
 	// 解析内容中的 ![[ ]] 标签
-	fileLinks, err := h.App.FileService.ResolveEmbedLinks(ctx, uid, params.Vault, note.Path, note.Content)
+	fileLinks, err := h.App.FileServiceV3.ResolveEmbedLinks(ctx, uid, params.Vault, note.Path, note.Content)
 	if err != nil {
 		h.App.Logger().Error("NoteHandler.Get FileResolveEmbedLinks err", zap.Error(err))
 	}
@@ -150,7 +150,7 @@ func (h *NoteHandler) List(c *gin.Context) {
 	// 获取请求上下文
 	ctx := c.Request.Context()
 
-	noteSvc := h.App.GetNoteService(h.getClientInfo(c))
+	noteSvc := h.App.GetNoteServiceV3(h.getClientInfo(c))
 	pager := pkgapp.NewPager(c)
 
 	notes, count, err := noteSvc.List(ctx, uid, params, pager)
@@ -225,7 +225,7 @@ func (h *NoteHandler) CreateOrUpdate(c *gin.Context) {
 	// 获取请求上下文
 	ctx := c.Request.Context()
 
-	noteSvc := h.App.GetNoteService(h.getClientInfo(c))
+	noteSvc := h.App.GetNoteServiceV3(h.getClientInfo(c))
 
 	// Check update
 	// 检查更新
@@ -260,7 +260,6 @@ func (h *NoteHandler) CreateOrUpdate(c *gin.Context) {
 	}
 
 	response.ToResponse(code.Success.WithData(noteNew))
-	h.WSS.BroadcastToUser(uid, code.Success.WithData(noteNew).WithVault(params.Vault), "NoteSyncModify")
 }
 
 // Delete deletes a note
@@ -304,7 +303,7 @@ func (h *NoteHandler) Delete(c *gin.Context) {
 	// 获取请求上下文
 	ctx := c.Request.Context()
 
-	noteSvc := h.App.GetNoteService(h.getClientInfo(c))
+	noteSvc := h.App.GetNoteServiceV3(h.getClientInfo(c))
 
 	// Check if note exists
 	// 检查笔记是否存在
@@ -333,7 +332,6 @@ func (h *NoteHandler) Delete(c *gin.Context) {
 	}
 
 	response.ToResponse(code.Success.WithData(note))
-	h.WSS.BroadcastToUser(uid, code.Success.WithData(note).WithVault(params.Vault), "NoteSyncDelete")
 }
 
 // Restore restores a note from trash
@@ -377,7 +375,7 @@ func (h *NoteHandler) Restore(c *gin.Context) {
 	// 获取请求上下文
 	ctx := c.Request.Context()
 
-	noteSvc := h.App.GetNoteService(h.getClientInfo(c))
+	noteSvc := h.App.GetNoteServiceV3(h.getClientInfo(c))
 
 	// Check if note exists in trash
 	// 检查笔记是否存在于回收站
@@ -407,7 +405,6 @@ func (h *NoteHandler) Restore(c *gin.Context) {
 	}
 
 	response.ToResponse(code.Success.WithData(note))
-	h.WSS.BroadcastToUser(uid, code.Success.WithData(note).WithVault(params.Vault), "NoteSyncModify")
 }
 
 // PatchFrontmatter modifies note frontmatter
@@ -457,7 +454,7 @@ func (h *NoteHandler) PatchFrontmatter(c *gin.Context) {
 	// 获取请求上下文
 	ctx := c.Request.Context()
 
-	noteSvc := h.App.GetNoteService(h.getClientInfo(c))
+	noteSvc := h.App.GetNoteServiceV3(h.getClientInfo(c))
 	note, err := noteSvc.PatchFrontmatter(ctx, uid, params)
 	if err != nil {
 		h.logError(ctx, "NoteHandler.PatchFrontmatter", err)
@@ -466,7 +463,6 @@ func (h *NoteHandler) PatchFrontmatter(c *gin.Context) {
 	}
 
 	response.ToResponse(code.Success.WithData(note))
-	h.WSS.BroadcastToUser(uid, code.Success.WithData(note).WithVault(params.Vault), "NoteSyncModify")
 }
 
 // Append appends content to a note
@@ -516,7 +512,7 @@ func (h *NoteHandler) Append(c *gin.Context) {
 	// 获取请求上下文
 	ctx := c.Request.Context()
 
-	noteSvc := h.App.GetNoteService(h.getClientInfo(c))
+	noteSvc := h.App.GetNoteServiceV3(h.getClientInfo(c))
 	note, err := noteSvc.AppendContent(ctx, uid, params)
 	if err != nil {
 		h.logError(ctx, "NoteHandler.Append", err)
@@ -525,7 +521,6 @@ func (h *NoteHandler) Append(c *gin.Context) {
 	}
 
 	response.ToResponse(code.Success.WithData(note))
-	h.WSS.BroadcastToUser(uid, code.Success.WithData(note).WithVault(params.Vault), "NoteSyncModify")
 }
 
 // Prepend inserts content at the beginning of a note
@@ -575,7 +570,7 @@ func (h *NoteHandler) Prepend(c *gin.Context) {
 	// 获取请求上下文
 	ctx := c.Request.Context()
 
-	noteSvc := h.App.GetNoteService(h.getClientInfo(c))
+	noteSvc := h.App.GetNoteServiceV3(h.getClientInfo(c))
 	note, err := noteSvc.PrependContent(ctx, uid, params)
 	if err != nil {
 		h.logError(ctx, "NoteHandler.Prepend", err)
@@ -584,7 +579,6 @@ func (h *NoteHandler) Prepend(c *gin.Context) {
 	}
 
 	response.ToResponse(code.Success.WithData(note))
-	h.WSS.BroadcastToUser(uid, code.Success.WithData(note).WithVault(params.Vault), "NoteSyncModify")
 }
 
 // Replace performs find and replace in a note
@@ -634,7 +628,7 @@ func (h *NoteHandler) Replace(c *gin.Context) {
 	// 获取请求上下文
 	ctx := c.Request.Context()
 
-	noteSvc := h.App.GetNoteService(h.getClientInfo(c))
+	noteSvc := h.App.GetNoteServiceV3(h.getClientInfo(c))
 	result, err := noteSvc.ReplaceContent(ctx, uid, params)
 	if err != nil {
 		h.logError(ctx, "NoteHandler.Replace", err)
@@ -644,7 +638,6 @@ func (h *NoteHandler) Replace(c *gin.Context) {
 
 	response.ToResponse(code.Success.WithData(result))
 	if result.Note != nil {
-		h.WSS.BroadcastToUser(uid, code.Success.WithData(result.Note).WithVault(params.Vault), "NoteSyncModify")
 	}
 }
 
@@ -698,9 +691,9 @@ func (h *NoteHandler) Rename(c *gin.Context) {
 	// 获取请求上下文
 	ctx := c.Request.Context()
 
-	noteSvc := h.App.GetNoteService(h.getClientInfo(c))
+	noteSvc := h.App.GetNoteServiceV3(h.getClientInfo(c))
 
-	oldNote, newNote, err := noteSvc.Rename(ctx, uid, params)
+	_, newNote, err := noteSvc.Rename(ctx, uid, params)
 	if err != nil {
 		h.logError(ctx, "NoteHandler.Rename", err)
 		apperrors.ErrorResponse(c, err)
@@ -710,18 +703,6 @@ func (h *NoteHandler) Rename(c *gin.Context) {
 	response.ToResponse(code.Success.WithData(newNote))
 
 	// Broadcast WebSocket event: NoteSyncRename
-	// 广播 WebSocket 事件: 笔记同步重命名
-	h.WSS.BroadcastToUser(uid, code.Success.WithData(dto.NoteSyncRenameMessage{
-		Path:             newNote.Path,
-		PathHash:         newNote.PathHash,
-		ContentHash:      newNote.ContentHash,
-		Ctime:            newNote.Ctime,
-		Mtime:            newNote.Mtime,
-		Size:             newNote.Size,
-		OldPath:          oldNote.Path,
-		OldPathHash:      oldNote.PathHash,
-		UpdatedTimestamp: newNote.UpdatedTimestamp,
-	}).WithVault(params.Vault), "NoteSyncRename")
 }
 
 // GetBacklinks retrieves backlinks to a specific note
@@ -874,7 +855,7 @@ func (h *NoteHandler) RecycleClear(c *gin.Context) {
 	}
 
 	ctx := c.Request.Context()
-	noteSvc := h.App.GetNoteService(h.getClientInfo(c))
+	noteSvc := h.App.GetNoteServiceV3(h.getClientInfo(c))
 	if err := noteSvc.RecycleClear(ctx, uid, params); err != nil {
 		h.logError(ctx, "NoteHandler.RecycleClear", err)
 		apperrors.ErrorResponse(c, err)

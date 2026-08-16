@@ -62,6 +62,7 @@ func (r *userShareRepository) toDomain(m *model.UserShare) *domain.UserShare {
 		UID:          m.UID,
 		ResType:      m.ResType,
 		ResID:        m.ResID,
+		ResIDV3:      m.ResIDV3,
 		Resources:    res,
 		Status:       m.Status,
 		ViewCount:    m.ViewCount,
@@ -87,6 +88,7 @@ func (r *userShareRepository) toModel(d *domain.UserShare) *model.UserShare {
 		UID:          d.UID,
 		ResType:      d.ResType,
 		ResID:        d.ResID,
+		ResIDV3:      d.ResIDV3,
 		Res:          string(resBytes),
 		Status:       d.Status,
 		ViewCount:    d.ViewCount,
@@ -143,6 +145,34 @@ func (r *userShareRepository) GetByRes(ctx context.Context, uid int64, resType s
 		return nil, err
 	}
 	return r.toDomain(m), nil
+}
+
+// GetByResV3 按 v3 资源 ID（fs_entry UUID）取有效分享记录（P5：分享回接 v3 数据层）
+func (r *userShareRepository) GetByResV3(ctx context.Context, uid int64, resType string, resIDV3 string) (*domain.UserShare, error) {
+	us := r.userShare(uid).UserShare
+	m, err := us.WithContext(ctx).Where(us.ResType.Eq(resType), us.ResIDV3.Eq(resIDV3), us.Status.Eq(domain.UserShareStatusActive)).First()
+	if err != nil {
+		return nil, err
+	}
+	return r.toDomain(m), nil
+}
+
+// ListActiveNoteResIDV3s 返回有效分享的 v3 note 资源 ID 列表（fs_entry UUID）
+func (r *userShareRepository) ListActiveNoteResIDV3s(ctx context.Context, uid int64) ([]string, error) {
+	us := r.userShare(uid).UserShare
+	ms, err := us.WithContext(ctx).
+		Where(us.UID.Eq(uid), us.ResType.Eq("note"), us.Status.Eq(domain.UserShareStatusActive)).
+		Find()
+	if err != nil {
+		return nil, err
+	}
+	ids := make([]string, 0, len(ms))
+	for _, m := range ms {
+		if m.ResIDV3 != "" {
+			ids = append(ids, m.ResIDV3)
+		}
+	}
+	return ids, nil
 }
 
 func (r *userShareRepository) UpdateResources(ctx context.Context, uid int64, id int64, resources map[string][]string) error {

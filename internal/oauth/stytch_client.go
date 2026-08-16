@@ -79,21 +79,21 @@ type StytchScopeResult struct {
 }
 
 type stytchAuthorizeRequest struct {
-	ClientID            string   `json:"client_id"`
-	RedirectURI         string   `json:"redirect_uri"`
-	ResponseType        string   `json:"response_type"`
-	Scopes              []string `json:"scopes"`
-	UserID              string   `json:"user_id,omitempty"`
-	OrganizationID      string   `json:"organization_id,omitempty"`
-	MemberID            string   `json:"member_id,omitempty"`
-	SessionToken        string   `json:"session_token,omitempty"`
-	SessionJWT          string   `json:"session_jwt,omitempty"`
-	Prompt              string   `json:"prompt,omitempty"`
-	State               string   `json:"state,omitempty"`
-	Nonce               string   `json:"nonce,omitempty"`
-	CodeChallenge       string   `json:"code_challenge,omitempty"`
-	Resources           []string `json:"resources,omitempty"`
-	ConsentGranted      bool     `json:"consent_granted,omitempty"`
+	ClientID       string   `json:"client_id"`
+	RedirectURI    string   `json:"redirect_uri"`
+	ResponseType   string   `json:"response_type"`
+	Scopes         []string `json:"scopes"`
+	UserID         string   `json:"user_id,omitempty"`
+	OrganizationID string   `json:"organization_id,omitempty"`
+	MemberID       string   `json:"member_id,omitempty"`
+	SessionToken   string   `json:"session_token,omitempty"`
+	SessionJWT     string   `json:"session_jwt,omitempty"`
+	Prompt         string   `json:"prompt,omitempty"`
+	State          string   `json:"state,omitempty"`
+	Nonce          string   `json:"nonce,omitempty"`
+	CodeChallenge  string   `json:"code_challenge,omitempty"`
+	Resources      []string `json:"resources,omitempty"`
+	ConsentGranted bool     `json:"consent_granted,omitempty"`
 }
 
 func NewStytchClient(cfg StytchClientConfig) *StytchClient {
@@ -134,13 +134,13 @@ func (c *StytchClient) AuthorizeSubmit(ctx context.Context, params StytchAuthori
 
 func (p StytchAuthorizeParams) toRequest(includeConsent bool) stytchAuthorizeRequest {
 	req := stytchAuthorizeRequest{
-		ClientID:            p.ClientID,
-		RedirectURI:         p.RedirectURI,
-		ResponseType:        p.ResponseType,
-		Scopes:              append([]string(nil), p.Scopes...),
-		UserID:              p.UserID,
-		OrganizationID:      p.OrganizationID,
-		MemberID:            p.MemberID,
+		ClientID:       p.ClientID,
+		RedirectURI:    p.RedirectURI,
+		ResponseType:   p.ResponseType,
+		Scopes:         append([]string(nil), p.Scopes...),
+		UserID:         p.UserID,
+		OrganizationID: p.OrganizationID,
+		MemberID:       p.MemberID,
 	}
 	if includeConsent {
 		req.ConsentGranted = p.ConsentGranted

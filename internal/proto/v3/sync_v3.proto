@@ -1,0 +1,211 @@
+// WS v3 git 式快照同步的 protobuf 传输编码（P8，git-sync-redesign.md §5）。
+//
+// 与 JSON 帧的关系：同一动作集、同一字段语义，仅传输编码不同。协商：
+//   - 连接 URL 携带 protocol=protobuf（+ pb=1&pv=2 可在 auth 应答后立即升级），或
+//   - ClientInfo.protobuf = true；
+// 升级后双向文本帧全部换为二进制 "pb" 前缀帧（pkg/app/websocket.go OnMessage/ToResponse）。
+// "01" blob 分块二进制帧不参与 protobuf（裸 36B 会话 + 4B 序号 + 数据）。
+//
+// 字段号一经发布不可复用/不可改类型（前后向兼容靠新增字段）。
+syntax = "proto3";
+
+package fns.v3;
+
+option go_package = "github.com/haierkeys/fast-note-sync-service/internal/proto/v3";
+
+// ==================== 信封 ====================
+
+// WSMessage 客户端→服务端二进制帧信封（"pb" 前缀之后）
+message WSMessage {
+  string type = 1; // 动作名，与 JSON 帧的 "|" 前段一致（V3Sync / V3Commit / ...）
+  bytes data = 2;  // 按 type 对应的请求消息体
+}
+
+// WSResponse 服务端→客户端应答信封（WSMessage.data 的内容）
+message WSResponse {
+  int32 code = 1;       // code.Code 数值
+  bool status = 2;      // 成功与否
+  string message = 3;   // 提示文本（i18n）
+  bytes data = 4;       // 按动作对应的应答消息体（错误时应为空）
+  string details = 5;   // 错误明细（逗号拼接）
+  string vault = 6;     // 归属 vault（应答层冗余，与消息体内一致）
+  string context = 7;   // 旧分页通道用，v3 恒空（保形）
+  int32 pageIndex = 8;  // 同上恒 0
+}
+
+// ClientInfoMessage 握手 ClientInfo（ Negotiation 用；仅协商相关的少数字段）
+message ClientInfoMessage {
+  string name = 1;
+  string version = 2;
+  string type = 3;
+  bool is_desktop = 4;
+  bool is_mobile = 5;
+  bool is_phone = 6;
+  bool is_tablet = 7;
+  bool is_mac_os = 8;
+  bool is_win = 9;
+  bool is_linux = 10;
+  string offline_sync_strategy = 11;
+  bool protobuf = 12;
+}
+
+// ==================== 共享结构（与 domain/reconcile 的 JSON 形状一一对应） ====================
+
+// ManifestItem 清单条目
+message ManifestItem {
+  string id = 1;        // 服务器分配的 UUID（身份）
+  string path = 2;      // vault 内相对路径
+  string hash = 3;      // blob 内容 SHA-256（JSON 键名 "hash"）
+  bool is_note = 4;
+  int64 size = 5;
+  int64 mtime = 6;      // 秒
+  int64 ctime = 7;      // 秒
+}
+
+// Tombstone 客户端墓碑
+message Tombstone {
+  string path = 1;
+  string id = 2;
+}
+
+// Scope 客户端声明范围（sparse 对账）
+message Scope {
+  repeated string include = 1;
+  repeated string exclude = 2;
+  repeated string types = 3; // note | attachment | config
+}
+
+// Op 服务端下发的操作
+message Op {
+  string op = 1;        // pull | move | delete（JSON 键名 "op"）
+  ManifestItem item = 2;
+  string from = 3;      // move 的旧路径
+}
+
+// Conflict 冲突项
+message Conflict {
+  string path = 1;
+  string kind = 2;      // modify | add
+  string id = 3;
+  string base_hash = 4;
+  string server_hash = 5;
+  int64 server_mtime = 6;
+  string local_hash = 7;
+  bool is_note = 8;
+}
+
+// Change 提交素材的一条变更
+message Change {
+  string op = 1;        // add | modify | delete | move
+  string old_path = 2;  // move 专用
+  ManifestItem item = 3;
+}
+
+// ==================== 动作消息体 ====================
+
+// V3Sync（C→S）
+message V3SyncRequest {
+  string vault = 1;
+  int64 base_epoch = 2;
+  repeated ManifestItem manifest = 3;
+  repeated Tombstone tombstones = 4;
+  Scope scope = 5;
+}
+
+// V3SyncPlan（S→C）
+message V3SyncPlanMessage {
+  string vault = 1;
+  int64 server_epoch = 2;
+  int64 base_epoch = 3;
+  repeated Op ops = 4;
+  repeated Conflict conflicts = 5;
+  repeated Change expected = 6;
+}
+
+// V3BlobNeed（S→C）
+message V3BlobNeedMessage {
+  string vault = 1;
+  string path = 2;
+  string hash = 3;
+  int64 size = 4;
+}
+
+// V3BlobPage（S→C，笔记文本内联）
+message V3BlobPageMessage {
+  string vault = 1;
+  string path = 2;
+  string hash = 3;
+  int64 size = 4;
+  bool is_note = 5;
+  string content = 6;
+}
+
+// V3Commit（C→S）
+message V3ManifestCommitRequest {
+  string vault = 1;
+  int64 base_epoch = 2;
+  repeated Change changes = 3;
+}
+
+// V3CommitAck（S→C）
+message V3CommitAckItem {
+  string path = 1;
+  string id = 2;
+}
+
+message V3ManifestCommitAckMessage {
+  string vault = 1;
+  int64 new_epoch = 2;
+  repeated V3CommitAckItem items = 3;
+}
+
+// V3NotifyManifest（S→C 广播）
+message V3NotifyManifestMessage {
+  string vault = 1;
+  int64 new_epoch = 2;
+  repeated Op ops = 3;
+}
+
+// V3BlobUpload（C→S）
+message V3BlobUploadOpenRequest {
+  string vault = 1;
+  string hash = 2;
+  int64 size = 3;
+}
+
+// V3BlobUploadOpenAck（S→C；exists=true 即秒传）
+message V3BlobUploadOpenMessage {
+  string vault = 1;
+  string hash = 2;
+  string session_id = 3;
+  int64 chunk_size = 4;
+  int64 total_chunks = 5;
+  bool exists = 6;
+}
+
+// V3BlobUploadAck（S→C，分块全部到齐）
+message V3BlobUploadAckMessage {
+  string vault = 1;
+  string hash = 2;
+  int64 size = 3;
+}
+
+// V3BlobDownload（C→S）
+message V3BlobDownloadRequest {
+  string vault = 1;
+  string hash = 2;
+  uint32 chunk_index = 3;
+}
+
+// V3BlobChunk（S→C，单分块）
+message V3BlobChunkMessage {
+  string vault = 1;
+  string hash = 2;
+  uint32 chunk_index = 3;
+  int64 total_chunks = 4;
+  int64 chunk_size = 5;
+  int64 size = 6;
+  string data = 7; // base64（与 JSON 帧一致；二进制分块通道是 "01" 上行专用）
+}
+
+// ShareSyncRefresh（S→C 广播；无消息体，data 留空）

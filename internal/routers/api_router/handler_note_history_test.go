@@ -37,7 +37,7 @@ func newNoteHistoryTestContext(method, url, body string, uid int64) (*gin.Contex
 
 func newTestNoteHistoryHandler(historySvc *svcmocks.MockNoteHistoryService) *NoteHistoryHandler {
 	testApp := app.NewTestApp(&app.Services{
-		NoteHistoryService: historySvc,
+		NoteHistoryServiceV3: historySvc,
 	})
 	wss := pkgapp.NewWebsocketServer(pkgapp.WSConfig{}, testApp)
 	return NewNoteHistoryHandler(testApp, wss)

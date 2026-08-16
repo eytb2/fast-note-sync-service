@@ -24,9 +24,16 @@ type VaultRebuildIndexRequest struct {
 // VaultForceDeleteItemRequest 强制物理删除单条数据（笔记/附件）的请求参数
 // VaultForceDeleteItemRequest Request for force-deleting a single note or file in a vault
 type VaultForceDeleteItemRequest struct {
-	VaultID  int64  `json:"vaultId" form:"vaultId" binding:"required" example:"1"`              // Vault ID // 笔记库 ID
-	Type     string `json:"type" form:"type" binding:"required" oneof:"note file"`              // Resource type: note or file // 资源类型
-	ID       int64  `json:"id" form:"id" binding:"required" example:"100"`                      // Resource ID // 资源 ID
+	VaultID int64  `json:"vaultId" form:"vaultId" binding:"required" example:"1"` // Vault ID // 笔记库 ID
+	Type    string `json:"type" form:"type" binding:"required" oneof:"note file"` // Resource type: note or file // 资源类型
+	ID      int64  `json:"id" form:"id" binding:"required" example:"100"`         // Resource ID // 资源 ID
+}
+
+// VaultRestoreBatchRequest 批量从回收站恢复（按路径，笔记/附件不区分）的请求参数
+// VaultRestoreBatchRequest Request for batch-restoring entries from the recycle bin by path
+type VaultRestoreBatchRequest struct {
+	Vault string   `json:"vault" form:"vault" binding:"required" example:"note"` // Vault name // 笔记库名称
+	Paths []string `json:"paths" form:"paths" binding:"required" example:"a.md"` // Entry paths to restore // 待恢复条目路径列表
 }
 
 // ---------------- DTO / Response ----------------

@@ -38,7 +38,7 @@ func newFolderTestContext(method, url, body string, uid int64) (*gin.Context, *h
 func newTestFolderHandler(folderSvc *svcmocks.MockFolderService) *FolderHandler {
 	folderSvc.On("WithClient", "", "", "").Maybe().Return(folderSvc)
 	testApp := app.NewTestApp(&app.Services{
-		FolderService: folderSvc,
+		FolderServiceV3: folderSvc,
 	})
 	folderSvc.On("WithClient", mock.Anything, mock.Anything, mock.Anything).Return(folderSvc)
 	return NewFolderHandler(testApp)

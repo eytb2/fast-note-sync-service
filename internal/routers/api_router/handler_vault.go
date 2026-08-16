@@ -331,3 +331,49 @@ func (h *VaultHandler) ForceDeleteDataItem(c *gin.Context) {
 
 	response.ToResponse(code.SuccessDelete)
 }
+
+// RestoreBatch batch-restores entries from the recycle bin by path
+// @Summary Batch restore from recycle bin
+// @Description Restore multiple deleted entries (notes and attachments) by path; per-item failure does not abort the batch, restricted to webgui client
+// @Tags Vault
+// @Security UserAuthToken
+// @Accept json
+// @Produce json
+// @Param params body dto.VaultRestoreBatchRequest true "Restore Parameters"
+// @Success 200 {object} pkgapp.Res "Success"
+// @Router /api/vault/restore-batch [post]
+func (h *VaultHandler) RestoreBatch(c *gin.Context) {
+	response := pkgapp.NewResponse(c)
+
+	params := &dto.VaultRestoreBatchRequest{}
+
+	// Parameter binding and validation
+	// 参数绑定与校验
+	valid, errs := pkgapp.BindAndValid(c, params)
+	if !valid {
+		h.App.Logger().Error("VaultHandler.RestoreBatch.BindAndValid errs", zap.Error(errs))
+		response.ToResponse(code.ErrorInvalidParams.WithDetails(errs.ErrorsToString()).WithData(errs.MapsToString()))
+		return
+	}
+
+	// Get UID
+	// 获取用户 ID
+	uid := pkgapp.GetUID(c)
+	if uid == 0 {
+		h.App.Logger().Error("VaultHandler.RestoreBatch err uid=0")
+		response.ToResponse(code.ErrorNotUserAuthToken)
+		return
+	}
+
+	// Get request context
+	// 获取请求上下文
+	ctx := c.Request.Context()
+	clientType, _, _ := h.getClientInfo(c)
+
+	ok, failed := h.App.ContentV3Service.RestoreBatch(ctx, uid, params.Vault, params.Paths, clientType)
+
+	response.ToResponse(code.Success.WithData(map[string]interface{}{
+		"restored": ok,
+		"failed":   failed,
+	}))
+}

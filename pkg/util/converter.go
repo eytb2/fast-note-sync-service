@@ -109,4 +109,3 @@ func IntSliceToStrSlice(list []int) []string {
 func Ptr[T any](v T) *T {
 	return &v
 }
-

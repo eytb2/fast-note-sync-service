@@ -14,8 +14,9 @@ import (
 )
 
 const (
-	SupportGitHubRawURL = "https://raw.githubusercontent.com/haierkeys/fast-note-sync-service/refs/heads/master/docs/Support.%s.json"
-	SupportCNBRawURL    = "https://cnb.cool/haierkeys/fast-note-sync-service/-/git/raw/master/docs/Support.%s.json"
+	// 支持信息只从自建 GitHub 仓库拉取（eytb2），不再使用上游官方源。
+	// Support info is fetched from the self-hosted GitHub repo (eytb2) only.
+	SupportRawURL = "https://raw.githubusercontent.com/eytb2/fast-note-sync-service/refs/heads/master/docs/Support.%s.json"
 )
 
 type UpdateSupportTask struct {
@@ -50,11 +51,7 @@ func (t *UpdateSupportTask) Run(ctx context.Context) error {
 			remoteLang = "zh-TW"
 		}
 
-		if t.app.IsPullFromGitHub() {
-			url = fmt.Sprintf(SupportGitHubRawURL, remoteLang)
-		} else {
-			url = fmt.Sprintf(SupportCNBRawURL, remoteLang)
-		}
+		url = fmt.Sprintf(SupportRawURL, remoteLang)
 
 		records, err := t.fetchSupportRecords(url)
 		if err != nil {

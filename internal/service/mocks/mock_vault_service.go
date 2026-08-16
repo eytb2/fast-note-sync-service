@@ -118,7 +118,6 @@ func (m *MockVaultService) ForceDeleteDataItem(ctx context.Context, uid int64, v
 	return args.Error(0)
 }
 
-
 // Compile-time check: MockVaultService must implement service.VaultService.
 // 编译时检查：MockVaultService 必须实现 service.VaultService 接口。
 var _ service.VaultService = (*MockVaultService)(nil)

@@ -37,7 +37,7 @@ func (h *FolderHandler) Get(c *gin.Context) {
 	}
 
 	uid := pkgapp.GetUID(c)
-	res, err := h.App.GetFolderService(h.getClientInfo(c)).Get(c.Request.Context(), uid, params)
+	res, err := h.App.GetFolderServiceV3(h.getClientInfo(c)).Get(c.Request.Context(), uid, params)
 	if err != nil {
 		apperrors.ErrorResponse(c, err)
 		return
@@ -65,7 +65,7 @@ func (h *FolderHandler) List(c *gin.Context) {
 	}
 
 	uid := pkgapp.GetUID(c)
-	res, err := h.App.GetFolderService(h.getClientInfo(c)).List(c.Request.Context(), uid, params)
+	res, err := h.App.GetFolderServiceV3(h.getClientInfo(c)).List(c.Request.Context(), uid, params)
 	if err != nil {
 		apperrors.ErrorResponse(c, err)
 		return
@@ -94,7 +94,7 @@ func (h *FolderHandler) Create(c *gin.Context) {
 	}
 
 	uid := pkgapp.GetUID(c)
-	res, err := h.App.GetFolderService(h.getClientInfo(c)).UpdateOrCreate(c.Request.Context(), uid, params)
+	res, err := h.App.GetFolderServiceV3(h.getClientInfo(c)).UpdateOrCreate(c.Request.Context(), uid, params)
 	if err != nil {
 		apperrors.ErrorResponse(c, err)
 		return
@@ -123,7 +123,7 @@ func (h *FolderHandler) Delete(c *gin.Context) {
 	}
 
 	uid := pkgapp.GetUID(c)
-	_, err := h.App.GetFolderService(h.getClientInfo(c)).Delete(c.Request.Context(), uid, params)
+	_, err := h.App.GetFolderServiceV3(h.getClientInfo(c)).Delete(c.Request.Context(), uid, params)
 	if err != nil {
 		apperrors.ErrorResponse(c, err)
 		return
@@ -154,7 +154,7 @@ func (h *FolderHandler) ListNotes(c *gin.Context) {
 	uid := pkgapp.GetUID(c)
 	pager := pkgapp.NewPager(c)
 
-	res, count, err := h.App.GetFolderService(h.getClientInfo(c)).ListNotes(c.Request.Context(), uid, params, pager)
+	res, count, err := h.App.GetFolderServiceV3(h.getClientInfo(c)).ListNotes(c.Request.Context(), uid, params, pager)
 	if err != nil {
 		apperrors.ErrorResponse(c, err)
 		return
@@ -184,7 +184,7 @@ func (h *FolderHandler) ListFiles(c *gin.Context) {
 
 	uid := pkgapp.GetUID(c)
 	pager := pkgapp.NewPager(c)
-	res, count, err := h.App.GetFolderService(h.getClientInfo(c)).ListFiles(c.Request.Context(), uid, params, pager)
+	res, count, err := h.App.GetFolderServiceV3(h.getClientInfo(c)).ListFiles(c.Request.Context(), uid, params, pager)
 	if err != nil {
 		apperrors.ErrorResponse(c, err)
 		return
@@ -212,7 +212,7 @@ func (h *FolderHandler) Tree(c *gin.Context) {
 	}
 
 	uid := pkgapp.GetUID(c)
-	res, err := h.App.GetFolderService(h.getClientInfo(c)).GetTree(c.Request.Context(), uid, params)
+	res, err := h.App.GetFolderServiceV3(h.getClientInfo(c)).GetTree(c.Request.Context(), uid, params)
 	if err != nil {
 		apperrors.ErrorResponse(c, err)
 		return

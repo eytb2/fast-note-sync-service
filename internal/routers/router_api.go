@@ -188,6 +188,8 @@ func registerAPIRoutes(r *gin.Engine, appContainer *app.App, wss *pkgapp.Websock
 				webguiGroup.DELETE("/vault", vaultHandler.Delete)
 				webguiGroup.POST("/vault/rebuild-index", vaultHandler.RebuildIndex)
 				webguiGroup.POST("/vault/force-delete-item", vaultHandler.ForceDeleteDataItem)
+				// 回收站批量恢复（一键恢复后端；单条恢复走 /api/note|file/restore）
+				webguiGroup.POST("/vault/restore-batch", vaultHandler.RestoreBatch)
 
 				// Admin config interface
 				// 管理员配置接口

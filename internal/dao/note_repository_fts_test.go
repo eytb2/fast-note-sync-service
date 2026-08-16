@@ -378,15 +378,15 @@ func TestBleveFTSDisabled(t *testing.T) {
 	// 2. Perform Create and verify it works without throwing errors or creating FTS files
 	// 2. 执行创建，验证其工作正常且不抛出错误或创建 FTS 文件
 	note := &domain.Note{
-		VaultID:     vaultID,
-		Path:        "test.md",
-		PathHash:    util.EncodeHash32("test.md"),
-		Content:     "Hello disable FTS test",
-		Ctime:       123,
-		Mtime:       456,
-		ClientName:  "Test",
-		ClientType:  "Test",
-		Action:      "add",
+		VaultID:    vaultID,
+		Path:       "test.md",
+		PathHash:   util.EncodeHash32("test.md"),
+		Content:    "Hello disable FTS test",
+		Ctime:      123,
+		Mtime:      456,
+		ClientName: "Test",
+		ClientType: "Test",
+		Action:     "add",
 	}
 
 	created, err := noteRepo.Create(ctx, note, uid)

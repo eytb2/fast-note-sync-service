@@ -81,8 +81,8 @@ type AppSettings struct {
 
 	FtsBleveEnabled  *bool `yaml:"fts-bleve-enabled" default:"true"`    // Bleve FTS enabled flag // 是否启用 Bleve 全文搜索（默认启用）
 	FtsBleveStoreRaw *bool `yaml:"fts-bleve-store-raw" default:"false"` // Bleve FTS store raw content flag // Bleve 全文搜索是否存储原始文本（默认启用为方案 B，若设为 false 则为仅索引不存储的方案 A）
-	SyncDownChunkNum int `yaml:"sync-down-chunk-num" default:"200"` // Serial download sync page chunk size // 串行下载同步的分块数量
-	SyncUpChunkNum   int `yaml:"sync-up-chunk-num" default:"100"`  // Serial upload sync batch size // 串行上传同步的分包大小
+	SyncDownChunkNum int   `yaml:"sync-down-chunk-num" default:"200"`   // Serial download sync page chunk size // 串行下载同步的分块数量
+	SyncUpChunkNum   int   `yaml:"sync-up-chunk-num" default:"100"`     // Serial upload sync batch size // 串行上传同步的分包大小
 
 	// PipelineWindowUp negotiated upload sliding-window size for pv>=2 connections; 0 disables
 	// the window (stop-and-wait, same as pre-3.6.0 behavior — this is the runtime rollback
@@ -138,4 +138,3 @@ func (a AppSettings) PipelineWindowDownClamped() int {
 	}
 	return clampWindow(*a.PipelineWindowDown, 16)
 }
-

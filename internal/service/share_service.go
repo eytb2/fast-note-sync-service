@@ -8,7 +8,6 @@ import (
 	"mime"
 	"net/http"
 	"net/url"
-	"os"
 	"path"
 	"path/filepath"
 	"regexp"
@@ -79,17 +78,20 @@ type ShareService interface {
 	// VerifyShare 验证分享 Token 及其状态
 	VerifyShare(ctx context.Context, token string, rid string, rtp string, password string) (*pkgapp.ShareEntity, error)
 
-	// GetSharedNote retrieves shared note details
-	// GetSharedNote 获取分享的单条笔记详情
-	GetSharedNote(ctx context.Context, shareToken string, noteID int64, password string) (*dto.NoteDTO, error)
+	// GetSharedNote retrieves shared note details (rid: v3 entry UUID)
+	// GetSharedNote 获取分享的单条笔记详情（rid 为 v3 条目 UUID）
+	GetSharedNote(ctx context.Context, shareToken string, rid string, password string) (*dto.NoteDTO, error)
 
-	// GetSharedFile retrieves shared file content
-	// GetSharedFile 获取分享的文件内容
-	GetSharedFile(ctx context.Context, shareToken string, fileID int64, password string) (content []byte, contentType string, mtime int64, etag string, fileName string, err error)
+	// GetSharedFile retrieves shared file content (rid: v3 entry UUID)
+	// GetSharedFile 获取分享的文件内容（rid 为 v3 条目 UUID）
+	GetSharedFile(ctx context.Context, shareToken string, rid string, password string) (content []byte, contentType string, mtime int64, etag string, fileName string, err error)
 
-	// GetSharedFileInfo retrieves shared file metadata and path for zero-copy download
-	// GetSharedFileInfo 获取分享文件的元数据和路径，用于零拷贝下载
-	GetSharedFileInfo(ctx context.Context, shareToken string, fileID int64, password string) (savePath string, contentType string, mtime int64, etag string, fileName string, err error)
+	// GetSharedFileInfo retrieves shared file metadata and path for zero-copy download (rid: v3 entry UUID)
+	// GetSharedFileInfo 获取分享文件的元数据和物理路径，用于零拷贝下载（rid 为 v3 条目 UUID）
+	GetSharedFileInfo(ctx context.Context, shareToken string, rid string, password string) (savePath string, contentType string, mtime int64, etag string, fileName string, err error)
+
+	// RevokeV3Entries 条目被删除时撤销对应分享（v3 提交副作用监听调用）
+	RevokeV3Entries(ev *CommitEvent, deletedIDs []string)
 
 	// RecordView aggregates access statistics in memory
 	// RecordView 在内存中聚合访问统计
@@ -111,13 +113,13 @@ type ShareService interface {
 	// ListShares 列出用户的所有分享（支持排序和分页）
 	ListShares(ctx context.Context, uid int64, sortBy string, sortOrder string, pager *pkgapp.Pager) ([]*dto.ShareListItem, int, error)
 
-	// GetShareByPath retrieves share info by path
-	// GetShareByPath 根据路径获取分享信息
-	GetShareByPath(ctx context.Context, uid int64, vaultName string, pathHash string) (*domain.UserShare, error)
+	// GetShareByPath retrieves share info by path (v3: entry path is the key input)
+	// GetShareByPath 根据路径获取分享信息（v3：条目路径为关键输入）
+	GetShareByPath(ctx context.Context, uid int64, vaultName string, path string) (*domain.UserShare, error)
 
 	// StopShareByPath revokes a share by path
 	// StopShareByPath 根据路径撤销分享
-	StopShareByPath(ctx context.Context, uid int64, vaultName string, pathHash string) error
+	StopShareByPath(ctx context.Context, uid int64, vaultName string, path string) error
 
 	// GetActiveNotePathsByVault returns active shared note paths for a vault
 	// GetActiveNotePathsByVault 返回指定 vault 下所有有效分享的笔记路径列表
@@ -141,9 +143,9 @@ type aggStats struct {
 type shareService struct {
 	repo         domain.UserShareRepository // Share repository // 分享仓库
 	tokenManager pkgapp.TokenManager        // Token manager // Token 管理器
-	noteRepo     domain.NoteRepository      // Note repository // 笔记仓库
-	fileRepo     domain.FileRepository      // File repository // 文件仓库
 	vaultRepo    domain.VaultRepository     // Vault repository // 仓库仓库
+	fsRepo       domain.FsEntryRepository   // v3 条目仓储（P5：分享回接新数据层）
+	blobs        domain.BlobStore           // v3 blob 存储（分享内容读取）
 	logger       *zap.Logger                // Logger // 日志器
 	config       *ServiceConfig             // Service configuration // 服务配置
 
@@ -158,13 +160,13 @@ type shareService struct {
 
 // NewShareService creates ShareService instance
 // NewShareService 创建 ShareService 实例
-func NewShareService(repo domain.UserShareRepository, tokenManager pkgapp.TokenManager, noteRepo domain.NoteRepository, fileRepo domain.FileRepository, vaultRepo domain.VaultRepository, logger *zap.Logger, config *ServiceConfig) ShareService {
+func NewShareService(repo domain.UserShareRepository, tokenManager pkgapp.TokenManager, vaultRepo domain.VaultRepository, fsRepo domain.FsEntryRepository, blobs domain.BlobStore, logger *zap.Logger, config *ServiceConfig) ShareService {
 	s := &shareService{
 		repo:         repo,
 		tokenManager: tokenManager,
-		noteRepo:     noteRepo,
-		fileRepo:     fileRepo,
 		vaultRepo:    vaultRepo,
+		fsRepo:       fsRepo,
+		blobs:        blobs,
 		logger:       logger,
 		config:       config,
 		statsBuffer:  make(map[int64]*aggStats),
@@ -190,49 +192,38 @@ func (s *shareService) ShareGenerate(ctx context.Context, uid int64, vaultName s
 	vaultID := vault.ID
 
 	var resolvedResources = make(map[string][]string)
-	var mainID int64
 	var mainType string
 
-	// 2. Determine type based on suffix
-	// 2. 根据后缀判定类型
-	isNote := strings.HasSuffix(strings.ToLower(path), ".md")
-
-	if isNote {
-		// Try looking up as Note
-		// 尝试作为 Note 查找
-		note, err := s.noteRepo.GetByPathHash(ctx, pathHash, vaultID, uid)
-		if err == nil && note != nil && note.Action != domain.NoteActionDelete {
-			mainID = note.ID
-			mainType = "note"
-			noteIDStr := strconv.FormatInt(note.ID, 10)
-			resolvedResources["note"] = []string{noteIDStr}
-			fileRefs, err := s.resolveSharedNoteFiles(ctx, uid, note.VaultID, note.Path, note.Content)
-			if err != nil {
-				s.logger.Warn("ShareGenerate resolveSharedNoteFiles failed", zap.Error(err), zap.String("notePath", note.Path))
+	// 2. Resolve against v3 fs_entry (P5: share reads the new data layer).
+	// Entry ID is stable across renames — no share migration on rename.
+	// 2. 以 v3 fs_entry 解析资源（P5：分享读新数据层）。
+	// 条目 UUID 随重命名保持不变——重命名不再需要迁移分享记录。
+	entry, err := s.fsRepo.GetLiveByPath(ctx, path, vaultID, uid)
+	if err != nil || entry == nil {
+		if strings.HasSuffix(strings.ToLower(path), ".md") {
+			return nil, code.ErrorNoteNotFound.WithDetails("note not found: " + path)
+		}
+		return nil, code.ErrorFileNotFound.WithDetails("file not found: " + path)
+	}
+	mainType = "file"
+	if entry.IsNote {
+		mainType = "note"
+	}
+	resolvedResources[mainType] = []string{entry.ID}
+	if entry.IsNote {
+		if content, rerr := s.blobs.BlobReadAll(uid, entry.BlobHash); rerr == nil {
+			fileRefs, ferr := s.resolveSharedNoteFiles(ctx, uid, entry.VaultID, entry.Path, string(content))
+			if ferr != nil {
+				s.logger.Warn("ShareGenerate resolveSharedNoteFiles failed", zap.Error(ferr), zap.String("notePath", entry.Path))
 			} else {
 				for _, file := range fileRefs {
-					fileIDStr := strconv.FormatInt(file.ID, 10)
 					// Avoid duplicate authorization
 					// 避免重复授权
-					if !util.Inarray(resolvedResources["file"], fileIDStr) {
-						resolvedResources["file"] = append(resolvedResources["file"], fileIDStr)
+					if !util.Inarray(resolvedResources["file"], file.ID) {
+						resolvedResources["file"] = append(resolvedResources["file"], file.ID)
 					}
 				}
 			}
-		} else {
-			return nil, code.ErrorNoteNotFound.WithDetails("note not found: " + path)
-		}
-	} else {
-		// Try looking up as File
-		// 尝试作为 File 查找
-		file, err := s.fileRepo.GetByPathHash(ctx, pathHash, vaultID, uid)
-		if err == nil && file != nil && file.Action != domain.FileActionDelete {
-			mainID = file.ID
-			mainType = "file"
-			fileIDStr := strconv.FormatInt(file.ID, 10)
-			resolvedResources["file"] = []string{fileIDStr}
-		} else {
-			return nil, code.ErrorFileNotFound.WithDetails("file not found: " + path)
 		}
 	}
 
@@ -259,7 +250,7 @@ func (s *shareService) ShareGenerate(ctx context.Context, uid int64, vaultName s
 	share := &domain.UserShare{
 		UID:       uid,
 		ResType:   mainType,
-		ResID:     mainID,
+		ResIDV3:   entry.ID,
 		Resources: resolvedResources,
 		Status:    1,
 		ExpiresAt: expiresAt,
@@ -270,7 +261,7 @@ func (s *shareService) ShareGenerate(ctx context.Context, uid int64, vaultName s
 
 	// Idempotent: revoke any existing active share before creating a new one
 	// 幂等：若该资源已有 active 分享，先撤销，避免重复计数
-	if existing, err := s.repo.GetByRes(ctx, uid, mainType, mainID); err == nil && existing != nil {
+	if existing, err := s.repo.GetByResV3(ctx, uid, mainType, entry.ID); err == nil && existing != nil {
 		_ = s.StopShare(ctx, uid, existing.ID)
 	}
 
@@ -286,7 +277,7 @@ func (s *shareService) ShareGenerate(ctx context.Context, uid int64, vaultName s
 	}
 
 	return &dto.ShareCreateResponse{
-		ID:         mainID,
+		EntryID:    entry.ID,
 		Type:       mainType,
 		Token:      token,
 		IsPassword: pwdHash != "",
@@ -453,8 +444,8 @@ func (s *shareService) UpdateSharePassword(ctx context.Context, uid int64, vault
 		return code.ErrorVaultNotFound
 	}
 
-	// 2. Get UserShare by resource
-	share, err := s.repo.GetByPath(ctx, uid, vault.ID, pathHash)
+	// 2. Get UserShare by resource (v3: path → entry → share)
+	share, err := s.shareByVaultPath(ctx, uid, vault.ID, path)
 	if err != nil {
 		return err
 	}
@@ -505,41 +496,18 @@ func (s *shareService) ListShares(ctx context.Context, uid int64, sortBy string,
 
 	items := make([]*dto.ShareListItem, 0, len(shares))
 
-	// Collect noteIDs and fileIDs in bulk to avoid N+1 queries
-	// 批量收集 noteIDs 和 fileIDs，避免 N+1 查询
-	var noteIDs, fileIDs []int64
+	// v3: batch-resolve entries by UUID for titles/paths (no N+1 beyond one query per share row)
+	// v3：按 UUID 解析条目回填标题/路径
+	entryMap := make(map[string]*domain.FsEntry)
 	for _, share := range shares {
-		switch share.ResType {
-		case "note":
-			noteIDs = append(noteIDs, share.ResID)
-		case "file":
-			fileIDs = append(fileIDs, share.ResID)
+		if share.ResIDV3 == "" {
+			continue
 		}
-	}
-
-	// Batch query notes and build id→note map
-	// 批量查询 notes，建立 id→note 映射
-	noteMap := make(map[int64]*domain.Note)
-	if len(noteIDs) > 0 {
-		notes, err := s.noteRepo.ListByIDs(ctx, noteIDs, uid)
-		if err != nil {
-			s.logger.Warn("ListShares: batch query notes failed", zap.Error(err))
-		} else {
-			for _, n := range notes {
-				noteMap[n.ID] = n
-			}
+		if _, ok := entryMap[share.ResIDV3]; ok {
+			continue
 		}
-	}
-
-	fileMap := make(map[int64]*domain.File)
-	if len(fileIDs) > 0 {
-		files, err := s.fileRepo.ListByIDs(ctx, fileIDs, uid)
-		if err != nil {
-			s.logger.Warn("ListShares: batch query files failed", zap.Error(err))
-		} else {
-			for _, f := range files {
-				fileMap[f.ID] = f
-			}
+		if e, err := s.fsRepo.GetByID(ctx, share.ResIDV3, uid); err == nil && e != nil {
+			entryMap[share.ResIDV3] = e
 		}
 	}
 
@@ -550,6 +518,7 @@ func (s *shareService) ListShares(ctx context.Context, uid int64, sortBy string,
 	for _, share := range shares {
 		item := &dto.ShareListItem{
 			ID:           share.ID,
+			EntryID:      share.ResIDV3,
 			UID:          share.UID,
 			Resources:    share.Resources,
 			Status:       share.Status,
@@ -562,30 +531,29 @@ func (s *shareService) ListShares(ctx context.Context, uid int64, sortBy string,
 			IsPassword:   share.Password != "",
 		}
 
-		// Generate Token and concatenate URL /ResID/token
-		// 生成 Token 并拼接 URL /ResID/token
+		// Generate Token and concatenate URL /rid/token (rid = entry UUID for v3 rows)
+		// 生成 Token 并拼接 URL /rid/token（v3 分享的 rid 为条目 UUID）
 		token, err := s.tokenManager.ShareGenerate(share.ID, uid, share.Resources)
 		if err == nil {
-			item.URL = "/share/" + strconv.FormatInt(share.ResID, 10) + "/" + token
+			rid := share.ResIDV3
+			if rid == "" {
+				rid = strconv.FormatInt(share.ResID, 10) // 旧记录兜底（迁移部署场景）
+			}
+			item.URL = "/share/" + rid + "/" + token
 		}
 
-		// Fill title from preloaded maps, no extra DB queries
-		// 从预加载的 map 中回填标题，无额外查询
-		switch share.ResType {
-		case "note":
-			if note, ok := noteMap[share.ResID]; ok && note.Action != domain.NoteActionDelete {
-				item.Title = strings.TrimSuffix(filepath.Base(note.Path), ".md")
-				item.NotePath = note.Path
-				if name, ok := vaultNameCache[note.VaultID]; ok {
+		// Fill title/path from preloaded entry map, no extra DB queries
+		// 从预加载的条目 map 中回填标题/路径，无额外查询
+		if e, ok := entryMap[share.ResIDV3]; ok && !e.Deleted {
+			item.Title = shareResourceTitle(e)
+			if e.IsNote {
+				item.NotePath = e.Path
+				if name, ok := vaultNameCache[e.VaultID]; ok {
 					item.VaultName = name
-				} else if v, err := s.vaultRepo.GetByID(ctx, note.VaultID, uid); err == nil && v != nil {
-					vaultNameCache[note.VaultID] = v.Name
+				} else if v, err := s.vaultRepo.GetByID(ctx, e.VaultID, uid); err == nil && v != nil {
+					vaultNameCache[e.VaultID] = v.Name
 					item.VaultName = v.Name
 				}
-			}
-		case "file":
-			if file, ok := fileMap[share.ResID]; ok {
-				item.Title = filepath.Base(file.Path)
 			}
 		}
 
@@ -597,40 +565,56 @@ func (s *shareService) ListShares(ctx context.Context, uid int64, sortBy string,
 
 // GetShareByPath retrieves share info by path
 // GetShareByPath 根据路径获取分享信息
-func (s *shareService) GetShareByPath(ctx context.Context, uid int64, vaultName string, pathHash string) (*domain.UserShare, error) {
+func (s *shareService) GetShareByPath(ctx context.Context, uid int64, vaultName string, path string) (*domain.UserShare, error) {
 	vault, err := s.vaultRepo.GetByName(ctx, vaultName, uid)
 	if err != nil {
 		return nil, err
 	}
 
-	resID := int64(0)
-	resType := ""
-
-	// Check if it's a note or file
-	note, err := s.noteRepo.GetByPathHash(ctx, pathHash, vault.ID, uid)
-	if err == nil && note != nil {
-		resID = note.ID
-		resType = "note"
-	} else {
-		file, err := s.fileRepo.GetByPathHash(ctx, pathHash, vault.ID, uid)
-		if err == nil && file != nil {
-			resID = file.ID
-			resType = "file"
-		}
-	}
-
-	if resID == 0 {
+	// v3: path → live entry (ID is the share key; stable across renames)
+	entry, err := s.fsRepo.GetLiveByPath(ctx, path, vault.ID, uid)
+	if err != nil || entry == nil {
 		return nil, code.ErrorFileNotFound
 	}
+	resType := "file"
+	if entry.IsNote {
+		resType = "note"
+	}
 
-	// Use precision index query instead of iterating list
-	// 使用精确索引查询，替代遍历列表
-	share, err := s.repo.GetByRes(ctx, uid, resType, resID)
-	if err != nil {
+	share, err := s.repo.GetByResV3(ctx, uid, resType, entry.ID)
+	if err != nil || share == nil {
 		return nil, code.ErrorFileNotFound // No active share found
 	}
 
 	return share, nil
+}
+
+// shareByVaultPath 路径 → 活跃条目 → 该条目的有效分享（不存在返回 nil, nil）
+func (s *shareService) shareByVaultPath(ctx context.Context, uid, vaultID int64, path string) (*domain.UserShare, error) {
+	entry, err := s.fsRepo.GetLiveByPath(ctx, path, vaultID, uid)
+	if err != nil {
+		return nil, nil
+	}
+	if entry == nil {
+		return nil, nil
+	}
+	resType := "file"
+	if entry.IsNote {
+		resType = "note"
+	}
+	share, err := s.repo.GetByResV3(ctx, uid, resType, entry.ID)
+	if err != nil || share == nil {
+		return nil, nil
+	}
+	return share, nil
+}
+
+// shareResourceTitle 分享列表/短链的标题：笔记去 .md 后缀，附件取 basename
+func shareResourceTitle(e *domain.FsEntry) string {
+	if e.IsNote {
+		return strings.TrimSuffix(filepath.Base(e.Path), ".md")
+	}
+	return filepath.Base(e.Path)
 }
 
 // CreateShortLink generates a short link for a share record
@@ -645,8 +629,8 @@ func (s *shareService) CreateShortLink(ctx context.Context, uid int64, vaultName
 		return "", code.ErrorVaultNotFound
 	}
 
-	// Find existing share record by path using vault.ID
-	share, err := s.repo.GetByPath(ctx, uid, vault.ID, pathHash)
+	// Find existing share record by path using vault.ID (v3: path → entry → share)
+	share, err := s.shareByVaultPath(ctx, uid, vault.ID, path)
 	if err != nil {
 		return "", err
 	}
@@ -676,21 +660,19 @@ func (s *shareService) CreateShortLink(ctx context.Context, uid int64, vaultName
 		if err != nil {
 			return "", err
 		}
-		longURL = fmt.Sprintf("%s/share/%d/%s", strings.TrimRight(baseURL, "/"), share.ResID, token)
+		// v3 行的 rid 是条目 UUID（ResIDV3）；旧数值 rid 仅作兜底展示
+		rid := share.ResIDV3
+		if rid == "" {
+			rid = strconv.FormatInt(share.ResID, 10)
+		}
+		longURL = fmt.Sprintf("%s/share/%s/%s", strings.TrimRight(baseURL, "/"), rid, token)
 	}
 
 	client := shortlink.NewSinkCoolClient(sinkBaseURL, apiKey)
 
 	title := ""
-	switch share.ResType {
-	case "note":
-		if note, err := s.noteRepo.GetByID(ctx, share.ResID, uid); err == nil && note != nil {
-			title = strings.TrimSuffix(filepath.Base(note.Path), ".md")
-		}
-	case "file":
-		if file, err := s.fileRepo.GetByID(ctx, share.ResID, uid); err == nil && file != nil {
-			title = filepath.Base(file.Path)
-		}
+	if e, err := s.fsRepo.GetByID(ctx, share.ResIDV3, uid); err == nil && e != nil {
+		title = shareResourceTitle(e)
 	}
 
 	shortURL, err := client.Create(longURL, expiresAt, password, cloaking, title)
@@ -709,8 +691,8 @@ func (s *shareService) CreateShortLink(ctx context.Context, uid int64, vaultName
 
 // StopShareByPath revokes a share by path
 // StopShareByPath 根据路径撤销分享
-func (s *shareService) StopShareByPath(ctx context.Context, uid int64, vaultName string, pathHash string) error {
-	share, err := s.GetShareByPath(ctx, uid, vaultName, pathHash)
+func (s *shareService) StopShareByPath(ctx context.Context, uid int64, vaultName string, path string) error {
+	share, err := s.GetShareByPath(ctx, uid, vaultName, path)
 	if err != nil {
 		return err
 	}
@@ -725,27 +707,26 @@ func (s *shareService) GetActiveNotePathsByVault(ctx context.Context, uid int64,
 		return nil, err
 	}
 
-	// Step 1: query active note res_ids from user_shares DB (no cross-DB JOIN)
-	// 步骤1：从 user_shares 库查出有效分享的 note res_id 列表（不做跨库 JOIN）
-	noteIDs, err := s.repo.ListActiveNoteResIDs(ctx, uid)
+	// Step 1: query active v3 note entry IDs from user_shares (no cross-DB JOIN)
+	// 步骤1：从 user_shares 库查出有效分享的 v3 note 条目 ID 列表（不做跨库 JOIN）
+	entryIDs, err := s.repo.ListActiveNoteResIDV3s(ctx, uid)
 	if err != nil {
 		return nil, err
 	}
-	if len(noteIDs) == 0 {
+	if len(entryIDs) == 0 {
 		return []string{}, nil
 	}
 
-	// Step 2: batch query notes from notes DB, filter by vault and non-deleted action
-	// 步骤2：从 notes 库批量查笔记，按 vault 和非删除状态过滤
-	notes, err := s.noteRepo.ListByIDs(ctx, noteIDs, uid)
-	if err != nil {
-		return nil, err
-	}
-
-	paths := make([]string, 0, len(notes))
-	for _, n := range notes {
-		if n.VaultID == vault.ID && n.Action != domain.NoteActionDelete {
-			paths = append(paths, n.Path)
+	// Step 2: resolve entries, filter by vault (live entries only — tombstones drop out)
+	// 步骤2：解析条目并按 vault 过滤（墓碑条目自然被排除）
+	paths := make([]string, 0, len(entryIDs))
+	for _, id := range entryIDs {
+		e, err := s.fsRepo.GetByID(ctx, id, uid)
+		if err != nil || e == nil || e.Deleted {
+			continue
+		}
+		if e.VaultID == vault.ID {
+			paths = append(paths, e.Path)
 		}
 	}
 	return paths, nil
@@ -753,9 +734,8 @@ func (s *shareService) GetActiveNotePathsByVault(ctx context.Context, uid int64,
 
 // GetSharedNote retrieves specific shared note details
 // GetSharedNote 获取分享的单条笔记详情
-func (s *shareService) GetSharedNote(ctx context.Context, shareToken string, noteID int64, password string) (*dto.NoteDTO, error) {
-	ridStr := strconv.FormatInt(noteID, 10)
-	shareEntity, err := s.VerifyShare(ctx, shareToken, ridStr, "note", password)
+func (s *shareService) GetSharedNote(ctx context.Context, shareToken string, rid string, password string) (*dto.NoteDTO, error) {
+	shareEntity, err := s.VerifyShare(ctx, shareToken, rid, "note", password)
 	if err != nil {
 		if cObj, ok := err.(*code.Code); ok {
 			return nil, cObj
@@ -763,30 +743,34 @@ func (s *shareService) GetSharedNote(ctx context.Context, shareToken string, not
 		return nil, code.ErrorInvalidAuthToken.WithDetails(err.Error())
 	}
 
-	// Retrieve note directly via ID (using resource owner's UID)
-	// 直接通过 ID 获取笔记 (使用资源所有者的 UID)
-	note, err := s.noteRepo.GetByID(ctx, noteID, shareEntity.UID)
-	if err != nil {
+	// Resolve v3 entry + content from the blob store (resource owner's UID)
+	// 以资源所有者身份解析 v3 条目并从 blob 存储读取内容
+	entry, err := s.fsRepo.GetByID(ctx, rid, shareEntity.UID)
+	if err != nil || entry == nil || entry.Deleted || !entry.IsNote {
 		return nil, code.ErrorNoteNotFound
+	}
+	content, err := s.blobs.BlobReadAll(shareEntity.UID, entry.BlobHash)
+	if err != nil {
+		return nil, code.ErrorNoteNotFound.WithDetails("content blob missing")
 	}
 
 	noteDTO := &dto.NoteDTO{
-		ID:               note.ID,
-		Path:             note.Path,
-		PathHash:         note.PathHash,
-		Content:          note.Content,
-		ContentHash:      note.ContentHash,
-		Version:          note.Version,
-		Ctime:            note.Ctime,
-		Mtime:            note.Mtime,
-		UpdatedTimestamp: note.UpdatedTimestamp,
-		UpdatedAt:        timex.Time(note.UpdatedAt),
-		CreatedAt:        timex.Time(note.CreatedAt),
+		EntryID:          entry.ID,
+		Path:             entry.Path,
+		PathHash:         util.EncodeHash32(entry.Path),
+		Content:          string(content),
+		ContentHash:      entry.BlobHash,
+		Version:          entry.Mtime,
+		Ctime:            entry.Ctime,
+		Mtime:            entry.Mtime,
+		UpdatedTimestamp: entry.UpdatedAt.UnixMilli(),
+		UpdatedAt:        timex.Time(entry.UpdatedAt),
+		CreatedAt:        timex.Time(entry.CreatedAt),
 	}
 
-	fileRefs, err := s.resolveSharedNoteFiles(ctx, shareEntity.UID, note.VaultID, note.Path, noteDTO.Content)
+	fileRefs, err := s.resolveSharedNoteFiles(ctx, shareEntity.UID, entry.VaultID, entry.Path, noteDTO.Content)
 	if err != nil {
-		s.logger.Warn("GetSharedNote resolveSharedNoteFiles failed", zap.Error(err), zap.String("notePath", note.Path))
+		s.logger.Warn("GetSharedNote resolveSharedNoteFiles failed", zap.Error(err), zap.String("notePath", entry.Path))
 	}
 
 	if len(fileRefs) > 0 {
@@ -882,13 +866,13 @@ func (s *shareService) GetSharedNote(ctx context.Context, shareToken string, not
 	return noteDTO, nil
 }
 
-func (s *shareService) resolveSharedNoteFiles(ctx context.Context, uid int64, vaultID int64, notePath string, content string) (map[string]*domain.File, error) {
+func (s *shareService) resolveSharedNoteFiles(ctx context.Context, uid int64, vaultID int64, notePath string, content string) (map[string]*domain.FsEntry, error) {
 	rawRefs := extractSharedNoteFileRefs(content)
 	if len(rawRefs) == 0 {
-		return map[string]*domain.File{}, nil
+		return map[string]*domain.FsEntry{}, nil
 	}
 
-	result := make(map[string]*domain.File, len(rawRefs))
+	result := make(map[string]*domain.FsEntry, len(rawRefs))
 	for _, rawRef := range rawRefs {
 		file, err := s.resolveSharedFileReference(ctx, uid, vaultID, notePath, rawRef)
 		if err != nil {
@@ -901,24 +885,41 @@ func (s *shareService) resolveSharedNoteFiles(ctx context.Context, uid int64, va
 	return result, nil
 }
 
-func (s *shareService) resolveSharedFileReference(ctx context.Context, uid int64, vaultID int64, notePath string, rawRef string) (*domain.File, error) {
+func (s *shareService) resolveSharedFileReference(ctx context.Context, uid int64, vaultID int64, notePath string, rawRef string) (*domain.FsEntry, error) {
 	ref := strings.TrimSpace(rawRef)
 	if !isLocalSharePath(ref) {
 		return nil, nil
 	}
 
+	// Exact candidates first (relative-to-note dir, then vault-rooted)
+	// 先精确候选（笔记目录相对路径，其次 vault 根路径）
 	for _, candidate := range buildSharePathCandidates(notePath, ref) {
-		file, err := s.fileRepo.GetByPath(ctx, candidate, vaultID, uid)
-		if err == nil && file != nil && file.Action != domain.FileActionDelete {
-			return file, nil
+		e, err := s.fsRepo.GetLiveByPath(ctx, candidate, vaultID, uid)
+		if err == nil && e != nil && !e.IsNote {
+			return e, nil
 		}
 	}
 
+	// Unique-basename fallback (old GetByPathLike equivalent): scan live
+	// attachments for a single match on the normalized basename.
+	// 唯一 basename 兜底（等价旧 GetByPathLike）：扫描活跃附件按 basename 唯一命中。
 	normalizedRef := normalizeShareVaultPath(ref)
 	if normalizedRef != "" && !strings.Contains(normalizedRef, "/") {
-		file, err := s.fileRepo.GetByPathLike(ctx, normalizedRef, vaultID, uid)
-		if err == nil && file != nil && file.Action != domain.FileActionDelete {
-			return file, nil
+		entries, err := s.fsRepo.ListLive(ctx, vaultID, uid)
+		if err == nil {
+			var hit *domain.FsEntry
+			for _, e := range entries {
+				if e.IsNote || filepath.Base(e.Path) != normalizedRef {
+					continue
+				}
+				if hit != nil {
+					return nil, nil // 歧义：同名多文件不授权
+				}
+				hit = e
+			}
+			if hit != nil {
+				return hit, nil
+			}
 		}
 	}
 
@@ -1074,7 +1075,7 @@ func detectMediaKindByExt(p string) string {
 	return ""
 }
 
-func rewriteMarkdownImageLinks(content string, fileRefs map[string]*domain.File, shareToken string, password string) string {
+func rewriteMarkdownImageLinks(content string, fileRefs map[string]*domain.FsEntry, shareToken string, password string) string {
 	return markdownImageRegex.ReplaceAllStringFunc(content, func(match string) string {
 		submatches := markdownImageRegex.FindStringSubmatch(match)
 		if len(submatches) < 3 {
@@ -1125,7 +1126,7 @@ func rewriteMarkdownImageLinks(content string, fileRefs map[string]*domain.File,
 	})
 }
 
-func rewriteHTMLImageSources(content string, fileRefs map[string]*domain.File, shareToken string, password string) string {
+func rewriteHTMLImageSources(content string, fileRefs map[string]*domain.FsEntry, shareToken string, password string) string {
 	return htmlImageRegex.ReplaceAllStringFunc(content, func(match string) string {
 		submatches := htmlImageRegex.FindStringSubmatch(match)
 		if len(submatches) < 5 {
@@ -1161,7 +1162,7 @@ func rewriteHTMLImageSources(content string, fileRefs map[string]*domain.File, s
 // 该函数与 extractSharedNoteFileRefs 中的媒体提取循环成对使用：先在提取阶段
 // 把 src 加入 fileRefs，然后在此处把 src 替换为带授权的分享 URL，前端播放器
 // 才能拉到对应文件。
-func rewriteHTMLMediaSources(content string, re *regexp.Regexp, tagName string, fileRefs map[string]*domain.File, shareToken string, password string) string {
+func rewriteHTMLMediaSources(content string, re *regexp.Regexp, tagName string, fileRefs map[string]*domain.FsEntry, shareToken string, password string) string {
 	return re.ReplaceAllStringFunc(content, func(match string) string {
 		submatches := re.FindStringSubmatch(match)
 		if len(submatches) < 5 {
@@ -1177,15 +1178,15 @@ func rewriteHTMLMediaSources(content string, re *regexp.Regexp, tagName string, 
 	})
 }
 
-func buildSharedFileAPIURL(fileID int64, shareToken string, password string) string {
-	apiURL := "/api/share/file?id=" + strconv.FormatInt(fileID, 10) + "&share_token=" + shareToken
+func buildSharedFileAPIURL(rid string, shareToken string, password string) string {
+	apiURL := "/api/share/file?id=" + rid + "&share_token=" + shareToken
 	if password != "" {
 		apiURL += "&password=" + password
 	}
 	return apiURL
 }
 
-func mergeShareFileResources(resources map[string][]string, fileRefs map[string]*domain.File) (map[string][]string, bool) {
+func mergeShareFileResources(resources map[string][]string, fileRefs map[string]*domain.FsEntry) (map[string][]string, bool) {
 	merged := cloneShareResources(resources)
 	allowed := make(map[string]struct{}, len(merged["file"]))
 	for _, id := range merged["file"] {
@@ -1194,7 +1195,7 @@ func mergeShareFileResources(resources map[string][]string, fileRefs map[string]
 
 	changed := false
 	for _, file := range fileRefs {
-		id := strconv.FormatInt(file.ID, 10)
+		id := file.ID
 		if _, ok := allowed[id]; ok {
 			continue
 		}
@@ -1315,9 +1316,8 @@ func isLocalSharePath(ref string) bool {
 
 // GetSharedFile retrieves shared file content
 // GetSharedFile 获取分享的文件内容
-func (s *shareService) GetSharedFile(ctx context.Context, shareToken string, fileID int64, password string) (content []byte, contentType string, mtime int64, etag string, fileName string, err error) {
-	ridStr := strconv.FormatInt(fileID, 10)
-	shareEntity, err := s.VerifyShare(ctx, shareToken, ridStr, "file", password)
+func (s *shareService) GetSharedFile(ctx context.Context, shareToken string, rid string, password string) (content []byte, contentType string, mtime int64, etag string, fileName string, err error) {
+	shareEntity, err := s.VerifyShare(ctx, shareToken, rid, "file", password)
 	if err != nil {
 		if cObj, ok := err.(*code.Code); ok {
 			return nil, "", 0, "", "", cObj
@@ -1329,27 +1329,23 @@ func (s *shareService) GetSharedFile(ctx context.Context, shareToken string, fil
 	// 1. 获取资源所有者的 UID
 	ownerUID := shareEntity.UID
 
-	// 2. Confirm path hash (get file metadata from fileRepo)
-	// 2. 确认路径哈希 (从 fileRepo 获取文件元数据)
-	file, err := s.fileRepo.GetByID(ctx, fileID, ownerUID)
-	if err != nil {
+	// 2. Resolve v3 entry (must be a live attachment)
+	// 2. 解析 v3 条目（须为活跃附件）
+	entry, err := s.fsRepo.GetByID(ctx, rid, ownerUID)
+	if err != nil || entry == nil || entry.Deleted || entry.IsNote {
 		return nil, "", 0, "", "", code.ErrorFileNotFound
 	}
 
-	if file.Action == domain.FileActionDelete {
-		return nil, "", 0, "", "", code.ErrorFileNotFound
-	}
-
-	// Read physical file content
-	// 读取物理文件内容
-	content, err = os.ReadFile(file.SavePath)
+	// Read content from the blob store (content-addressed)
+	// 从内容寻址 blob 存储读取内容
+	content, err = s.blobs.BlobReadAll(ownerUID, entry.BlobHash)
 	if err != nil {
 		return nil, "", 0, "", "", code.ErrorFileReadFailed.WithDetails(err.Error())
 	}
 
 	// Identify file MIME type
 	// 识别文件 MIME 类型
-	ext := filepath.Ext(file.Path)
+	ext := filepath.Ext(entry.Path)
 	contentType = mime.TypeByExtension(ext)
 	if contentType == "" {
 		// If extension cannot be identified, perform content sniffing
@@ -1357,19 +1353,15 @@ func (s *shareService) GetSharedFile(ctx context.Context, shareToken string, fil
 		contentType = http.DetectContentType(content)
 	}
 
-	// Compute etag in real-time using byte-based hash for consistency with binary files
-	// 使用基于字节的哈希实时计算 etag，确保与二进制文件一致
-	etag = util.EncodeHash32Bytes(content)
-
-	return content, contentType, file.Mtime, etag, file.Path, nil
-
+	// The blob hash IS the content hash — use it directly as etag
+	// blob 哈希即内容哈希——直接作为 etag
+	return content, contentType, entry.Mtime, entry.BlobHash, entry.Path, nil
 }
 
 // GetSharedFileInfo retrieves shared file metadata and path for zero-copy download
 // GetSharedFileInfo 获取分享文件的元数据和路径，用于零拷贝下载
-func (s *shareService) GetSharedFileInfo(ctx context.Context, shareToken string, fileID int64, password string) (savePath string, contentType string, mtime int64, etag string, fileName string, err error) {
-	ridStr := strconv.FormatInt(fileID, 10)
-	shareEntity, err := s.VerifyShare(ctx, shareToken, ridStr, "file", password)
+func (s *shareService) GetSharedFileInfo(ctx context.Context, shareToken string, rid string, password string) (savePath string, contentType string, mtime int64, etag string, fileName string, err error) {
+	shareEntity, err := s.VerifyShare(ctx, shareToken, rid, "file", password)
 	if err != nil {
 		if cObj, ok := err.(*code.Code); ok {
 			return "", "", 0, "", "", cObj
@@ -1380,30 +1372,52 @@ func (s *shareService) GetSharedFileInfo(ctx context.Context, shareToken string,
 	// 1. Get resource owner's UID
 	ownerUID := shareEntity.UID
 
-	// 2. Confirm path hash (get file metadata from fileRepo)
-	file, err := s.fileRepo.GetByID(ctx, fileID, ownerUID)
-	if err != nil {
-		return "", "", 0, "", "", code.ErrorFileNotFound
-	}
-
-	if file.Action == domain.FileActionDelete {
+	// 2. Resolve v3 entry (must be a live attachment)
+	entry, err := s.fsRepo.GetByID(ctx, rid, ownerUID)
+	if err != nil || entry == nil || entry.Deleted || entry.IsNote {
 		return "", "", 0, "", "", code.ErrorFileNotFound
 	}
 
 	// Identify file MIME type
-	ext := filepath.Ext(file.Path)
+	ext := filepath.Ext(entry.Path)
 	contentType = mime.TypeByExtension(ext)
 	if contentType == "" {
 		contentType = "application/octet-stream"
 	}
 
-	// Use file's content hash as ETag
-	etag = file.ContentHash
-	if etag == "" {
-		etag = file.PathHash
+	// Zero-copy: the local blob store exposes the physical blob path
+	// 零拷贝：本地 blob 存储暴露物理 blob 路径
+	if bp, ok := s.blobs.(interface {
+		BlobPath(uid int64, hash string) string
+	}); ok {
+		savePath = bp.BlobPath(ownerUID, entry.BlobHash)
+	} else {
+		return "", "", 0, "", "", code.ErrorFileNotFound.WithDetails("blob store has no physical path")
 	}
 
-	return file.SavePath, contentType, file.Mtime, etag, filepath.Base(file.Path), nil
+	return savePath, contentType, entry.Mtime, entry.BlobHash, filepath.Base(entry.Path), nil
+}
+
+// RevokeV3Entries 条目被删除时撤销其有效分享（v3 提交副作用；删除的从属附件
+// 也一并撤销）。条目 UUID 稳定，move 不需要迁移分享记录。
+func (s *shareService) RevokeV3Entries(ev *CommitEvent, deletedIDs []string) {
+	if len(deletedIDs) == 0 || ev == nil {
+		return
+	}
+	ctx := context.Background()
+	for _, id := range deletedIDs {
+		// 类型未知：note/file 各试一次（索引查询，代价低）
+		for _, resType := range []string{"note", "file"} {
+			share, err := s.repo.GetByResV3(ctx, ev.UID, resType, id)
+			if err != nil || share == nil {
+				continue
+			}
+			if err := s.StopShare(ctx, ev.UID, share.ID); err != nil {
+				s.logger.Warn("RevokeV3Entries: stop share failed",
+					zap.String("entryID", id), zap.Int64("shareID", share.ID), zap.Error(err))
+			}
+		}
+	}
 }
 
 // Shutdown shuts down the service and flushes remaining data

@@ -28,13 +28,13 @@ import (
 type LogType string
 
 const (
-	WSPingInterval         = 25
-	WSPingWait             = 60
-	WSPingWriteTimeout     = 10      // WritePing write timeout (seconds), must < PingInterval // WritePing 写超时（秒），需小于 PingInterval
-	LogInfo        LogType = "info"
-	LogError       LogType = "error"
-	LogWarn        LogType = "warn"
-	LogDebug       LogType = "debug"
+	WSPingInterval             = 25
+	WSPingWait                 = 60
+	WSPingWriteTimeout         = 10 // WritePing write timeout (seconds), must < PingInterval // WritePing 写超时（秒），需小于 PingInterval
+	LogInfo            LogType = "info"
+	LogError           LogType = "error"
+	LogWarn            LogType = "warn"
+	LogDebug           LogType = "debug"
 )
 
 // traceIDKeyType used to store Trace ID in context
@@ -290,7 +290,7 @@ type WebsocketClient struct {
 	DiffMergePaths      map[string]DiffMergeEntry // File paths needing merging // 需要合并的文件路径，包含创建时间用于超时清理
 	DiffMergePathsMu    sync.RWMutex              // Mutex lock to prevent concurrency conflicts // 互斥锁，防止并发冲突
 	failCount           atomic.Int32              // Consecutive broadcast failure counter; connection closed when exceeding threshold // 连续广播失败计数器，超过阈值时主动关闭连接
-	lastPongAt          atomic.Int64                    // Unix timestamp of last received pong; used to detect zombie connections // 最后一次收到 pong 的 Unix 时间戳，用于检测僵尸连接
+	lastPongAt          atomic.Int64              // Unix timestamp of last received pong; used to detect zombie connections // 最后一次收到 pong 的 Unix 时间戳，用于检测僵尸连接
 	TokenID             int64                     // Bound Token ID // 绑定的令牌 ID
 	Scope               string                    // Token Scope // 令牌权限范围
 	Vaults              string                    // Restrict Vaults // 限制笔记库
@@ -909,19 +909,19 @@ type ValidatorInterface interface {
 }
 
 type WebsocketServer struct {
-	app               AppContainer // App Container (Required) // App Container（必须）
+	app                AppContainer // App Container (Required) // App Container（必须）
 	handlers           map[string]func(*WebsocketClient, *WebSocketMessage)
 	noAuthHandlers     map[string]func(*WebsocketClient, *WebSocketMessage) // Handlers that do not require user authentication // 免登录鉴权消息处理器集合
 	interceptors       []func(*WebsocketClient, *WebSocketMessage) bool     // Pre-handler interceptor chain // 消息前置拦截器链
 	userVerifyHandler  func(*WebsocketClient, int64) (*UserSelectEntity, error)
 	tokenVerifyHandler func(ctx context.Context, uid int64, tokenID int64, nonce string, reqClientType, reqClientName, reqClientVersion, reqUserAgent, reqIP string) (string, string, error)
-	binaryHandlers    map[string]func(*WebsocketClient, []byte) // Binary message handler map: prefix -> handler // 二进制消息处理器映射 prefix -> handler
-	clients           ConnStorage
-	userClients       map[string]ConnStorage
-	connWg            sync.WaitGroup
-	mu                sync.RWMutex
-	up                *gws.Upgrader
-	config            *WSConfig
+	binaryHandlers     map[string]func(*WebsocketClient, []byte) // Binary message handler map: prefix -> handler // 二进制消息处理器映射 prefix -> handler
+	clients            ConnStorage
+	userClients        map[string]ConnStorage
+	connWg             sync.WaitGroup
+	mu                 sync.RWMutex
+	up                 *gws.Upgrader
+	config             *WSConfig
 	// Global session management (UID -> SessionID -> Session)
 	// 全局会话管理 (UID -> SessionID -> Session)
 	binaryChunkSessions map[string]map[string]any
@@ -1538,6 +1538,7 @@ func (w *WebsocketServer) GetSession(uid string, sessionID string) any {
 
 // GetSessionByPathHash gets global binary upload session by path hash
 // GetSessionByPathHash 通过路径哈希获取全局二进制上传会话
+//
 //go:noinline
 func (w *WebsocketServer) GetSessionByPathHash(uid string, pathHash string) any {
 	w.sessionsMu.RLock()
@@ -1741,8 +1742,9 @@ func (w *WebsocketServer) OnMessage(conn *gws.Conn, message *gws.Message) {
 					return ctx.Err()
 				default:
 				}
-				// Verify binary message permission (currently only "00" for file chunk upload)
-				if !VerifyPermissions(c.Scope, "ws", c.ClientType(), "file_w") {
+				// Verify binary message permission ("01" for v3 blob chunk upload, gated by note_w
+				// to stay consistent with the V3BlobUpload action mapping)
+				if !VerifyPermissions(c.Scope, "ws", c.ClientType(), "note_w") {
 					log(LogWarn, "WS OnMessage Binary Permission Denied", zap.String("prefix", prefix), zap.String("uid", c.User.ID))
 					c.ToResponse(code.ErrorAuthTokenScopeRestricted.WithDetails("Permission denied: binary " + prefix))
 					return nil
@@ -1943,4 +1945,3 @@ func (w *WebsocketServer) cleanupStaleSessions(uid string, maxAge time.Duration)
 		delete(w.binaryChunkSessions, uid)
 	}
 }
-

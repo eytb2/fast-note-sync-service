@@ -36,34 +36,6 @@ type FolderDeleteRequest struct {
 	Context  string `json:"context" form:"context" example:"ctx123"`                 // Context // 同步上下文
 }
 
-// FolderSyncCheckRequest Parameters for single record check during synchronization
-// 同步检查单条记录的参数
-type FolderSyncCheckRequest struct {
-	Path     string `json:"path" form:"path" example:"FolderA"`                             // Folder path // 文件夹路径
-	PathHash string `json:"pathHash" form:"pathHash" binding:"required" example:"fhash012"` // Path hash // 路径哈希
-	Mtime    int64  `json:"mtime" form:"mtime" binding:"required" example:"1700000000"`     // Modification timestamp // 修改时间戳
-}
-
-// FolderSyncDelFolder Parameters for deleting/missing folder during synchronization
-// 同步删除/缺失文件夹的参数
-type FolderSyncDelFolder struct {
-	Path     string `json:"path" form:"path" binding:"required" example:"DeletedFolder"`     // Folder path // 文件夹路径
-	PathHash string `json:"pathHash" form:"pathHash" binding:"required" example:"dfhash345"` // Path hash // 路径哈希
-}
-
-// FolderSyncRequest Synchronization request body
-// 同步请求主体
-type FolderSyncRequest struct {
-	Context        string                   `json:"context" form:"context" example:"task123"`                // Context // 上下文
-	Vault          string                   `json:"vault" form:"vault" binding:"required" example:"MyVault"` // Vault name // 保险库名称
-	LastTime       int64                    `json:"lastTime" form:"lastTime" example:"1700000000"`           // Last sync time // 最后同步时间
-	BatchIndex     int                      `json:"batchIndex" form:"batchIndex" example:"0"`               // Current batch index (0-based) // 当前批次索引（0 起）
-	TotalBatches   int                      `json:"totalBatches" form:"totalBatches" example:"1"`           // Total batch count // 总批次数
-	Folders        []FolderSyncCheckRequest `json:"folders" form:"folders"`                                  // Folders to check // 待检查文件夹列表
-	DelFolders     []FolderSyncDelFolder    `json:"delFolders" form:"delFolders"`                            // Folders to delete // 待删除文件夹列表
-	MissingFolders []FolderSyncDelFolder    `json:"missingFolders" form:"missingFolders"`                    // Missing folders // 缺失文件夹列表
-}
-
 // FolderRenameRequest Request parameters for folder renaming
 // 文件夹重命名请求参数
 type FolderRenameRequest struct {

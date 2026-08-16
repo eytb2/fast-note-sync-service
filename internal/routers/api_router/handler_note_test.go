@@ -40,8 +40,8 @@ func newNoteTestContext(method, url, body string, uid int64) (*gin.Context, *htt
 // newTestNoteHandler creates a NoteHandler with mock services.
 func newTestNoteHandler(noteSvc *svcmocks.MockNoteService, fileSvc *svcmocks.MockFileService) *NoteHandler {
 	testApp := app.NewTestApp(&app.Services{
-		NoteService: noteSvc,
-		FileService: fileSvc,
+		NoteServiceV3: noteSvc,
+		FileServiceV3: fileSvc,
 	})
 	if noteSvc != nil {
 		noteSvc.On("WithClient", mock.Anything, mock.Anything, mock.Anything).Return(noteSvc)

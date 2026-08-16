@@ -12,11 +12,13 @@ const (
 	SourceGitHub = "github"
 	SourceCNB    = "cnb"
 
-	// GitHubProbeURL / CNBProbeURL are the real release endpoints used for probing.
-	// 探测目标使用真实的 release 接口，而不是根域名 —— 根域名可达不代表 release 接口可达
-	// （GitHub 对未鉴权的 /repos/.../releases 有 60 次/小时/IP 限流，命中限流根域名仍 200）。
-	GitHubProbeURL = "https://api.github.com/repos/haierkeys/fast-note-sync-service/releases"
-	CNBProbeURL    = "https://api.cnb.cool/haierkeys/fast-note-sync-service/-/releases"
+	// 探测目标指向自建仓库（eytb2）的真实 release 接口。CNB 镜像已弃用：两个探测常量
+	// 都指向同一 GitHub 端点，选源结果恒为 GitHub，保留探测面板的对外行为不变。
+	// Probes target the real release endpoint of the self-hosted repo (eytb2).
+	// The CNB mirror is retired: both probe constants point at the same GitHub
+	// endpoint, so the selector always picks GitHub while keeping its API shape.
+	GitHubProbeURL = "https://api.github.com/repos/eytb2/fast-note-sync-service/releases"
+	CNBProbeURL    = "https://api.github.com/repos/eytb2/fast-note-sync-service/releases"
 
 	// defaultProbeTimeout is the per-source probe timeout.
 	// 单源探测超时；超过即判定该源不可用，直接切换到另一源。
@@ -44,10 +46,10 @@ type ProbeResult struct {
 // ProbeSnapshot is a point-in-time view of both sources produced by one parallel probe.
 // ProbeSnapshot 一次并行探测两源的快照，供前端测速面板展示与选源决策复用。
 type ProbeSnapshot struct {
-	GitHub     ProbeResult
-	CNB        ProbeResult
-	UseGitHub  bool      // derived recommended source based on the threshold strategy
-	At         time.Time // when this snapshot was taken
+	GitHub    ProbeResult
+	CNB       ProbeResult
+	UseGitHub bool      // derived recommended source based on the threshold strategy
+	At        time.Time // when this snapshot was taken
 }
 
 // SourceSelector handles the logic of selecting the data source (GitHub or CNB).

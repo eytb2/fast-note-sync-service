@@ -71,7 +71,7 @@ func (h *NoteHistoryHandler) Get(c *gin.Context) {
 	// 获取请求上下文
 	ctx := c.Request.Context()
 
-	history, err := h.App.NoteHistoryService.Get(ctx, uid, params.ID)
+	history, err := h.App.NoteHistoryServiceV3.Get(ctx, uid, params.ID)
 	if err != nil {
 		h.logError(ctx, "NoteHistoryHandler.Get", err)
 		apperrors.ErrorResponse(c, err)
@@ -123,7 +123,7 @@ func (h *NoteHistoryHandler) List(c *gin.Context) {
 
 	pager := pkgapp.NewPager(c)
 
-	list, count, err := h.App.NoteHistoryService.List(ctx, uid, params, pager)
+	list, count, err := h.App.NoteHistoryServiceV3.List(ctx, uid, params, pager)
 	if err != nil {
 		h.logError(ctx, "NoteHistoryHandler.List", err)
 		apperrors.ErrorResponse(c, err)
@@ -181,7 +181,7 @@ func (h *NoteHistoryHandler) Restore(c *gin.Context) {
 
 	// Execute restore
 	// 执行恢复
-	note, err := h.App.NoteHistoryService.RestoreFromHistory(ctx, uid, params.HistoryID)
+	note, err := h.App.NoteHistoryServiceV3.RestoreFromHistory(ctx, uid, params.HistoryID)
 	if err != nil {
 		h.logError(ctx, "NoteHistoryHandler.Restore", err)
 		apperrors.ErrorResponse(c, err)
@@ -189,5 +189,4 @@ func (h *NoteHistoryHandler) Restore(c *gin.Context) {
 	}
 
 	response.ToResponse(code.Success.WithData(note).WithVault(params.Vault))
-	h.WSS.BroadcastToUser(uid, code.Success.WithData(note).WithVault(params.Vault), "NoteSyncModify")
 }

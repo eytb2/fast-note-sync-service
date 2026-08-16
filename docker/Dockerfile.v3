@@ -1,0 +1,25 @@
+# v3 生产镜像（git 式快照同步改造版）
+# 二进制为 CGO=0 纯静态 Go，无需 woahbase/alpine-glibc，标准 alpine 即可。
+# 交叉编译产物：build/linux_arm64/（aarch64 中心服务器 10.10.10.1 用）。
+FROM docker.m.daocloud.io/library/alpine:3.20
+
+ENV TZ=Asia/Shanghai
+ENV P_NAME=fast-note-sync
+ENV P_BIN=fast-note-sync-service
+
+RUN sed -i 's/dl-cdn.alpinelinux.org/mirrors.aliyun.com/g' /etc/apk/repositories && \
+    apk --no-cache add --no-progress ca-certificates tzdata curl bash && \
+    cp /usr/share/zoneinfo/${TZ} /etc/localtime && \
+    echo ${TZ} > /etc/timezone && \
+    mkdir -p /${P_NAME}/
+
+EXPOSE 9000 9001
+VOLUME /${P_NAME}/config
+VOLUME /${P_NAME}/storage
+
+COPY ./build/linux_arm64/${P_BIN} /${P_NAME}/
+COPY ./docker/entrypoint.sh /entrypoint.sh
+
+RUN chmod +x /entrypoint.sh /${P_NAME}/${P_BIN}
+
+ENTRYPOINT ["/entrypoint.sh"]

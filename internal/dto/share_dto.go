@@ -36,8 +36,9 @@ type ShareCancelRequest struct {
 // ShareResourceRequest Request parameters for retrieving a shared resource
 // 分享资源获取请求
 type ShareResourceRequest struct {
-	ID       int64  `json:"id" form:"id" binding:"required" example:"1"` // Resource ID // 资源 ID
-	Password string `json:"password" form:"password" example:"123456"`   // Share password // 分享密码
+	ID       string `json:"id" form:"id" example:"b3f1...uuid"`           // rid：v3 为条目 UUID（分享页原样透传）；旧整型 rid 以字符串传递 // rid (v3 entry UUID; legacy int rid passed as string)
+	EntryID  string `json:"entryId" form:"entryId" example:"b3f1...uuid"` // v3 entry UUID（与 id 等价，优先） // v3 entry UUID (equivalent to id, takes precedence)
+	Password string `json:"password" form:"password" example:"123456"`    // Share password // 分享密码
 }
 
 // SharePasswordUpdateRequest Request parameters for updating share password
@@ -73,7 +74,8 @@ type ShareListRequest struct {
 // ShareCreateResponse Response for creating a share
 // 创建分享响应
 type ShareCreateResponse struct {
-	ID         int64     `json:"id"`         // ID of the note or file table (primary resource ID) // 笔记或文件表 ID（主资源 ID）
+	ID         int64     `json:"id"`         // ID of the note or file table (primary resource ID) // 笔记或文件表 ID（主资源 ID，v3 恒为 0）
+	EntryID    string    `json:"entryId"`    // v3 entry UUID (fs_entry.id; the share URL rid for v3 shares) // v3 条目 UUID（分享 URL 中的 rid）
 	Type       string    `json:"type"`       // Resource type: note or file // 资源类型：笔记（note）或文件（file）
 	Token      string    `json:"token"`      // Share Token // 分享 Token
 	IsPassword bool      `json:"isPassword"` // Whether password is set // 是否设置了密码
@@ -86,6 +88,7 @@ type ShareCreateResponse struct {
 // ShareListItem 分享列表项
 type ShareListItem struct {
 	ID           int64               `json:"id"`           // Share ID // 分享记录 ID
+	EntryID      string              `json:"entryId"`      // v3 entry UUID（主资源；v3 分享必填） // v3 条目 UUID
 	UID          int64               `json:"uid"`          // User ID // 用户 ID
 	Title        string              `json:"title"`        // Resource title (note title or file name) // 资源标题（笔记标题或文件名）
 	URL          string              `json:"url"`          // Share URL (path format: /id/token) // 分享 URL (路径格式: /id/token)

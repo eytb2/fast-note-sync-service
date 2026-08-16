@@ -75,7 +75,7 @@ type Dao struct {
 	userConfig    *config.DatabaseConfig
 	logger        *zap.Logger
 	writeQueueMgr *writequeue.Manager
-	BleveMgr      *BleveManager       // Bleve index manager instance // Bleve 索引管理器实例
+	BleveMgr      *BleveManager // Bleve index manager instance // Bleve 索引管理器实例
 }
 
 // DaoOption option function for configuring Dao

@@ -45,6 +45,22 @@ func (m *MockUserShareRepository) GetByRes(ctx context.Context, uid int64, resTy
 	return args.Get(0).(*domain.UserShare), args.Error(1)
 }
 
+func (m *MockUserShareRepository) GetByResV3(ctx context.Context, uid int64, resType string, resIDV3 string) (*domain.UserShare, error) {
+	args := m.Called(ctx, uid, resType, resIDV3)
+	if args.Get(0) == nil {
+		return nil, args.Error(1)
+	}
+	return args.Get(0).(*domain.UserShare), args.Error(1)
+}
+
+func (m *MockUserShareRepository) ListActiveNoteResIDV3s(ctx context.Context, uid int64) ([]string, error) {
+	args := m.Called(ctx, uid)
+	if args.Get(0) == nil {
+		return nil, args.Error(1)
+	}
+	return args.Get(0).([]string), args.Error(1)
+}
+
 func (m *MockUserShareRepository) UpdateResources(ctx context.Context, uid int64, id int64, resources map[string][]string) error {
 	args := m.Called(ctx, uid, id, resources)
 	return args.Error(0)

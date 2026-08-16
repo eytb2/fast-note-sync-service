@@ -38,16 +38,16 @@ func (m *MockShareService) VerifyShare(ctx context.Context, token string, rid st
 	return nil, args.Error(1)
 }
 
-func (m *MockShareService) GetSharedNote(ctx context.Context, shareToken string, noteID int64, password string) (*dto.NoteDTO, error) {
-	args := m.Called(ctx, shareToken, noteID, password)
+func (m *MockShareService) GetSharedNote(ctx context.Context, shareToken string, rid string, password string) (*dto.NoteDTO, error) {
+	args := m.Called(ctx, shareToken, rid, password)
 	if v := args.Get(0); v != nil {
 		return v.(*dto.NoteDTO), args.Error(1)
 	}
 	return nil, args.Error(1)
 }
 
-func (m *MockShareService) GetSharedFile(ctx context.Context, shareToken string, fileID int64, password string) ([]byte, string, int64, string, string, error) {
-	args := m.Called(ctx, shareToken, fileID, password)
+func (m *MockShareService) GetSharedFile(ctx context.Context, shareToken string, rid string, password string) ([]byte, string, int64, string, string, error) {
+	args := m.Called(ctx, shareToken, rid, password)
 	var content []byte
 	if v := args.Get(0); v != nil {
 		content = v.([]byte)
@@ -55,9 +55,13 @@ func (m *MockShareService) GetSharedFile(ctx context.Context, shareToken string,
 	return content, args.String(1), args.Get(2).(int64), args.String(3), args.String(4), args.Error(5)
 }
 
-func (m *MockShareService) GetSharedFileInfo(ctx context.Context, shareToken string, fileID int64, password string) (string, string, int64, string, string, error) {
-	args := m.Called(ctx, shareToken, fileID, password)
+func (m *MockShareService) GetSharedFileInfo(ctx context.Context, shareToken string, rid string, password string) (string, string, int64, string, string, error) {
+	args := m.Called(ctx, shareToken, rid, password)
 	return args.String(0), args.String(1), args.Get(2).(int64), args.String(3), args.String(4), args.Error(5)
+}
+
+func (m *MockShareService) RevokeV3Entries(ev *service.CommitEvent, deletedIDs []string) {
+	m.Called(ev, deletedIDs)
 }
 
 func (m *MockShareService) RecordView(uid int64, id int64) {

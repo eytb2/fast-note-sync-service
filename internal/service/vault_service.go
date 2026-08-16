@@ -7,6 +7,7 @@ import (
 	"errors"
 	"fmt"
 
+	"github.com/haierkeys/fast-note-sync-service/internal/dao"
 	"github.com/haierkeys/fast-note-sync-service/internal/domain"
 	"github.com/haierkeys/fast-note-sync-service/internal/dto"
 	"github.com/haierkeys/fast-note-sync-service/pkg/code"
@@ -77,6 +78,9 @@ type VaultService interface {
 // vaultService 实现 VaultService 接口
 type vaultService struct {
 	repo        domain.VaultRepository
+	fsRepo      domain.FsEntryRepository
+	bleve       *dao.BleveManager
+	blobs       domain.BlobStore
 	noteRepo    domain.NoteRepository
 	fileRepo    domain.FileRepository
 	folderRepo  domain.FolderRepository
@@ -96,6 +100,9 @@ type vaultService struct {
 // NewVaultService 创建 VaultService 实例
 func NewVaultService(
 	repo domain.VaultRepository,
+	fsRepo domain.FsEntryRepository,
+	bleve *dao.BleveManager,
+	blobs domain.BlobStore,
 	noteRepo domain.NoteRepository,
 	fileRepo domain.FileRepository,
 	folderRepo domain.FolderRepository,
@@ -111,6 +118,9 @@ func NewVaultService(
 ) VaultService {
 	return &vaultService{
 		repo:        repo,
+		fsRepo:      fsRepo,
+		bleve:       bleve,
+		blobs:       blobs,
 		noteRepo:    noteRepo,
 		fileRepo:    fileRepo,
 		folderRepo:  folderRepo,
@@ -244,6 +254,25 @@ func (s *vaultService) domainToDTO(vault *domain.Vault) *dto.VaultDTO {
 	}
 }
 
+// decorateStats 用 fs_entry 实时统计覆盖 DTO 计数。
+// vault 表的 note_count/file_count 等列自 v3 同步起不再增量维护（历史遗留），
+// 展示层（WebGUI 笔记库管理）因此恒为 0；这里按当前活跃条目现算，失败则回落到存量值。
+func (s *vaultService) decorateStats(ctx context.Context, d *dto.VaultDTO, uid int64) *dto.VaultDTO {
+	if d == nil || s.fsRepo == nil {
+		return d
+	}
+	noteCount, noteSize, fileCount, fileSize, err := s.fsRepo.StatsLive(ctx, d.ID, uid)
+	if err != nil {
+		s.logger.Warn("vault live stats failed, falling back to stored counters",
+			zap.Int64("vaultID", d.ID), zap.Error(err))
+		return d
+	}
+	d.NoteCount, d.NoteSize = noteCount, noteSize
+	d.FileCount, d.FileSize = fileCount, fileSize
+	d.Size = noteSize + fileSize
+	return d
+}
+
 // Create creates Vault
 // Create 创建 Vault
 func (s *vaultService) Create(ctx context.Context, uid int64, name string) (*dto.VaultDTO, error) {
@@ -276,7 +305,7 @@ func (s *vaultService) Get(ctx context.Context, uid int64, id int64) (*dto.Vault
 		}
 		return nil, code.ErrorDBQuery.WithDetails(err.Error())
 	}
-	return s.domainToDTO(vault), nil
+	return s.decorateStats(ctx, s.domainToDTO(vault), uid), nil
 }
 
 // List retrieves Vault list for current user
@@ -289,7 +318,7 @@ func (s *vaultService) List(ctx context.Context, uid int64) ([]*dto.VaultDTO, er
 
 	var results []*dto.VaultDTO
 	for _, vault := range vaults {
-		results = append(results, s.domainToDTO(vault))
+		results = append(results, s.decorateStats(ctx, s.domainToDTO(vault), uid))
 	}
 	return results, nil
 }
@@ -390,15 +419,64 @@ func (s *vaultService) Update(ctx context.Context, uid int64, id int64, name str
 	return s.domainToDTO(updated), nil
 }
 
-// RebuildIndex 从数据库和物理文件内容重建指定仓库的全文搜索索引
-// RebuildIndex rebuilds full-text search index for a specific vault
+// RebuildIndex 从 fs_entry 活跃笔记 + blob 内容重建指定仓库的全文搜索索引。
+// 旧实现扫 note 表，而 v3 同步只写 fs_entry、note 表恒空——旧路径会先删索引
+// 再建出空集，等于把搜索清空。这里改为与 v3SideEffects 增量索引同源的数据源。
+// RebuildIndex rebuilds full-text search index for a specific vault from live
+// fs_entry notes and their blobs (the v3 source of truth).
 func (s *vaultService) RebuildIndex(ctx context.Context, uid, vaultID int64) error {
 	// Verify if vault exists and belongs to user
 	// 确认 Vault 是否存在且属于该用户
 	if _, err := s.Get(ctx, uid, vaultID); err != nil {
 		return err
 	}
-	return s.noteRepo.RebuildVaultIndex(ctx, uid, vaultID)
+
+	// FTS 未启用或 v3 依赖未注入（单测桩）时不作为，与旧实现禁用态语义一致
+	if s.bleve == nil || !s.bleve.IsEnabled() || s.fsRepo == nil || s.blobs == nil {
+		return nil
+	}
+
+	entries, err := s.fsRepo.ListLive(ctx, vaultID, uid)
+	if err != nil {
+		return code.ErrorDBQuery.WithDetails(err.Error())
+	}
+
+	// 先排空在途批次再删旧索引，避免 ftsWorker 手里的旧 index 句柄与删除竞争
+	s.bleve.FlushSync()
+	if err := s.bleve.DeleteIndex(uid, vaultID); err != nil {
+		return code.ErrorServerInternal.WithDetails(err.Error())
+	}
+
+	indexed, skipped := 0, 0
+	for _, e := range entries {
+		if !e.IsNote || e.ID == "" {
+			continue
+		}
+		content, err := s.blobs.BlobReadAll(uid, e.BlobHash)
+		if err != nil {
+			skipped++
+			s.logger.Warn("rebuild fts: read blob failed, skip",
+				zap.String("path", e.Path), zap.Error(err))
+			continue
+		}
+		s.bleve.EnqueueUpsert(uid, vaultID, dao.BleveNoteDoc{
+			ID:      e.ID,
+			Path:    e.Path,
+			PathRaw: e.Path,
+			Content: string(content),
+			Rename:  float64(e.Mtime),
+			Ctime:   float64(e.Ctime),
+			Mtime:   float64(e.Mtime),
+		})
+		indexed++
+	}
+	// 重建走同步语义：返回时索引已写完，WebGUI 的完成提示才是真的
+	s.bleve.FlushSync()
+
+	s.logger.Info("v3 fts rebuild done",
+		zap.Int64("uid", uid), zap.Int64("vaultID", vaultID),
+		zap.Int("indexed", indexed), zap.Int("skipped", skipped))
+	return nil
 }
 
 // ForceDeleteDataItem permanently deletes a single note or file and writes a sync log
@@ -507,4 +585,3 @@ func (s *vaultService) ForceDeleteDataItem(ctx context.Context, uid int64, vault
 
 	return nil
 }
-

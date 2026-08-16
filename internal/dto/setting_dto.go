@@ -37,12 +37,6 @@ type SettingDeleteRequest struct {
 	Context  string `json:"context" form:"context" example:"ctx123"`                  // Context // 同步上下文
 }
 
-// SettingClearRequest Parameters for clearing settings
-// 清除配置参数
-type SettingClearRequest struct {
-	Vault string `json:"vault" form:"vault" binding:"required" example:"MyVault"` // Vault name // 保险库名称
-}
-
 // SettingListRequest Parameters for listing settings
 // 获取配置列表参数
 type SettingListRequest struct {
@@ -68,34 +62,12 @@ type SettingGetRequest struct {
 	PathHash string `json:"pathHash" form:"pathHash" example:"hash123"`              // Path hash // 路径哈希
 }
 
-// SettingSyncCheckRequest Parameters for checking synchronization of a single setting
-// 单条同步检查参数
-type SettingSyncCheckRequest struct {
-	Path        string `json:"path" form:"path" example:"User/Theme"`                         // Setting path // 配置路径
-	PathHash    string `json:"pathHash" form:"pathHash" binding:"required" example:"hash123"` // Path hash // 路径哈希
-	ContentHash string `json:"contentHash" form:"contentHash" example:"chash456"`             // Content hash // 内容哈希
-	Mtime       int64  `json:"mtime" form:"mtime" binding:"required" example:"1700000000"`    // Modification timestamp // 修改时间戳
-}
-
-// SettingSyncDelSetting Parameters for deleting sets during sync
-// 同步删除配置参数
-type SettingSyncDelSetting struct {
-	Path     string `json:"path" form:"path" binding:"required" example:"DeletedSetting"`   // Setting path // 配置路径
-	PathHash string `json:"pathHash" form:"pathHash" binding:"required" example:"dhash789"` // Path hash // 路径哈希
-}
-
 // SettingSyncRequest Synchronization request parameters
 // 同步请求参数
 type SettingSyncRequest struct {
-	Context         string                    `json:"context" form:"context" example:"task123"`                // Context // 上下文
-	Vault           string                    `json:"vault" form:"vault" binding:"required" example:"MyVault"` // Vault name // 保险库名称
-	LastTime        int64                     `json:"lastTime" form:"lastTime" example:"1700000000"`           // Last sync time // 最后同步时间
-	Cover           bool                      `json:"cover" form:"cover" example:"false"`                      // Whether to cover existing // 是否覆盖现有配置
-	BatchIndex      int                       `json:"batchIndex" form:"batchIndex" example:"0"`               // Current batch index (0-based) // 当前批次索引（0 起）
-	TotalBatches    int                       `json:"totalBatches" form:"totalBatches" example:"1"`           // Total batch count // 总批次数
-	Settings        []SettingSyncCheckRequest `json:"settings" form:"settings"`                                // Settings to check // 待检查配置列表
-	DelSettings     []SettingSyncDelSetting   `json:"delSettings" form:"delSettings"`                          // Settings to delete // 待删除配置列表
-	MissingSettings []SettingSyncDelSetting   `json:"missingSettings" form:"missingSettings"`                        // Missing settings // 缺失配置列表
+	Context  string `json:"context" form:"context" example:"task123"`                // Context // 上下文
+	Vault    string `json:"vault" form:"vault" binding:"required" example:"MyVault"` // Vault name // 保险库名称
+	LastTime int64  `json:"lastTime" form:"lastTime" example:"1700000000"`           // Last sync time // 最后同步时间
 }
 
 // ---------------- DTO / Response ----------------

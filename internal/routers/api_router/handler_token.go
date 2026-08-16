@@ -106,7 +106,7 @@ func (h *TokenHandler) Create(c *gin.Context) {
 // Update 更新令牌的属性
 func (h *TokenHandler) Update(c *gin.Context) {
 	response := pkgapp.NewResponse(c)
-	
+
 	idStr := c.Param("id")
 	tokenID, err := strconv.ParseInt(idStr, 10, 64)
 	if err != nil {
@@ -138,7 +138,7 @@ func (h *TokenHandler) Update(c *gin.Context) {
 // Revoke 注销令牌
 func (h *TokenHandler) Revoke(c *gin.Context) {
 	response := pkgapp.NewResponse(c)
-	
+
 	idStr := c.Param("id")
 	tokenID, err := strconv.ParseInt(idStr, 10, 64)
 	if err != nil {
@@ -163,7 +163,7 @@ func (h *TokenHandler) Revoke(c *gin.Context) {
 // Rotate 轮换令牌（生成新 JWT 并使旧的失效）
 func (h *TokenHandler) Rotate(c *gin.Context) {
 	response := pkgapp.NewResponse(c)
-	
+
 	idStr := c.Param("id")
 	tokenID, err := strconv.ParseInt(idStr, 10, 64)
 	if err != nil {
@@ -188,7 +188,7 @@ func (h *TokenHandler) Rotate(c *gin.Context) {
 // ListLogs 列出特定令牌的访问日志
 func (h *TokenHandler) ListLogs(c *gin.Context) {
 	response := pkgapp.NewResponse(c)
-	
+
 	idStr := c.Param("id")
 	tokenID, err := strconv.ParseInt(idStr, 10, 64)
 	if err != nil {

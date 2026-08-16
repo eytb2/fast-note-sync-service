@@ -4,7 +4,6 @@ import (
 	"github.com/gin-gonic/gin"
 	"github.com/haierkeys/fast-note-sync-service/internal/app"
 	"github.com/haierkeys/fast-note-sync-service/internal/dto"
-	"github.com/haierkeys/fast-note-sync-service/internal/routers/websocket_router"
 	pkgapp "github.com/haierkeys/fast-note-sync-service/pkg/app"
 	"github.com/haierkeys/fast-note-sync-service/pkg/code"
 	apperrors "github.com/haierkeys/fast-note-sync-service/pkg/errors"
@@ -111,16 +110,6 @@ func (h *SettingHandler) CreateOrUpdate(c *gin.Context) {
 	}
 
 	response.ToResponse(code.Success.WithData(res))
-	h.WSS.BroadcastToUser(uid, code.Success.WithData(dto.SettingSyncModifyMessage{
-		Vault:            params.Vault,
-		Path:             res.Path,
-		PathHash:         res.PathHash,
-		Content:          res.Content,
-		ContentHash:      res.ContentHash,
-		Ctime:            res.Ctime,
-		Mtime:            res.Mtime,
-		UpdatedTimestamp: res.UpdatedTimestamp,
-	}).WithVault(params.Vault), string(websocket_router.SettingSyncModify))
 }
 
 // Delete deletes a setting
@@ -143,20 +132,12 @@ func (h *SettingHandler) Delete(c *gin.Context) {
 	}
 
 	uid := pkgapp.GetUID(c)
-	res, err := h.App.GetSettingService(h.getClientInfo(c)).Delete(c.Request.Context(), uid, params)
-	if err != nil {
+	if _, err := h.App.GetSettingService(h.getClientInfo(c)).Delete(c.Request.Context(), uid, params); err != nil {
 		apperrors.ErrorResponse(c, err)
 		return
 	}
 
 	response.ToResponse(code.Success)
-	h.WSS.BroadcastToUser(uid, code.Success.WithData(dto.SettingSyncDeleteMessage{
-		Path:             res.Path,
-		PathHash:         res.PathHash,
-		Ctime:            res.Ctime,
-		Mtime:            res.Mtime,
-		UpdatedTimestamp: res.UpdatedTimestamp,
-	}).WithVault(params.Vault), string(websocket_router.SettingSyncDelete))
 }
 
 // Rename renames a setting
@@ -186,24 +167,4 @@ func (h *SettingHandler) Rename(c *gin.Context) {
 	}
 
 	response.ToResponse(code.Success.WithData(res))
-
-	// Broadcast old path deletion and new path modification
-	h.WSS.BroadcastToUser(uid, code.Success.WithData(dto.SettingSyncDeleteMessage{
-		Path:             params.OldPath,
-		PathHash:         params.OldPathHash,
-		Ctime:            res.Ctime,
-		Mtime:            res.Mtime,
-		UpdatedTimestamp: res.UpdatedTimestamp,
-	}).WithVault(params.Vault), string(websocket_router.SettingSyncDelete))
-
-	h.WSS.BroadcastToUser(uid, code.Success.WithData(dto.SettingSyncModifyMessage{
-		Vault:            params.Vault,
-		Path:             res.Path,
-		PathHash:         res.PathHash,
-		Content:          res.Content,
-		ContentHash:      res.ContentHash,
-		Ctime:            res.Ctime,
-		Mtime:            res.Mtime,
-		UpdatedTimestamp: res.UpdatedTimestamp,
-	}).WithVault(params.Vault), string(websocket_router.SettingSyncModify))
 }

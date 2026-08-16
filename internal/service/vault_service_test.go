@@ -24,7 +24,7 @@ func newVaultMockRepo() *domainmocks.MockVaultRepository {
 }
 
 func newVaultSvc(repo *domainmocks.MockVaultRepository) VaultService {
-	return NewVaultService(repo, nil, nil, nil, nil, nil, nil, nil, nil, nil, nil, nil, zap.NewNop())
+	return NewVaultService(repo, nil, nil, nil, nil, nil, nil, nil, nil, nil, nil, nil, nil, nil, nil, zap.NewNop())
 }
 
 // newVault creates a domain.Vault test fixture.
@@ -175,6 +175,9 @@ func TestVaultService_Delete_Success(t *testing.T) {
 
 	svc := NewVaultService(
 		mockRepo,
+		nil,
+		nil,
+		nil,
 		noteRepo,
 		fileRepo,
 		folderRepo,

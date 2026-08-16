@@ -4057,12 +4057,18 @@ const docTemplate = `{
                         "required": true
                     },
                     {
+                        "type": "string",
+                        "example": "b3f1...uuid",
+                        "description": "v3 entry UUID（与 id 二选一，优先） // v3 条目 UUID（与 id 二选一，优先）",
+                        "name": "entryId",
+                        "in": "query"
+                    },
+                    {
                         "type": "integer",
                         "example": 1,
-                        "description": "Resource ID // 资源 ID",
+                        "description": "Resource ID (legacy int ID; v3 uses entryId) // 资源 ID（旧整型；v3 用 entryId）",
                         "name": "id",
-                        "in": "query",
-                        "required": true
+                        "in": "query"
                     },
                     {
                         "type": "string",
@@ -4106,12 +4112,18 @@ const docTemplate = `{
                         "required": true
                     },
                     {
+                        "type": "string",
+                        "example": "b3f1...uuid",
+                        "description": "v3 entry UUID（与 id 二选一，优先） // v3 条目 UUID（与 id 二选一，优先）",
+                        "name": "entryId",
+                        "in": "query"
+                    },
+                    {
                         "type": "integer",
                         "example": 1,
-                        "description": "Resource ID // 资源 ID",
+                        "description": "Resource ID (legacy int ID; v3 uses entryId) // 资源 ID（旧整型；v3 用 entryId）",
                         "name": "id",
-                        "in": "query",
-                        "required": true
+                        "in": "query"
                     },
                     {
                         "type": "string",
@@ -6168,6 +6180,10 @@ const docTemplate = `{
                     "description": "Creation timestamp // 创建时间戳",
                     "type": "integer"
                 },
+                "entryId": {
+                    "description": "v3 entry UUID (fs_entry.id) // v3 条目 UUID",
+                    "type": "string"
+                },
                 "id": {
                     "description": "File ID // 文件 ID",
                     "type": "integer"
@@ -6688,6 +6704,10 @@ const docTemplate = `{
                     "description": "Creation timestamp // 创建时间戳",
                     "type": "integer"
                 },
+                "entryId": {
+                    "description": "v3 entry UUID (fs_entry.id) // v3 条目 UUID",
+                    "type": "string"
+                },
                 "id": {
                     "description": "Note ID // 笔记 ID",
                     "type": "integer"
@@ -6755,6 +6775,10 @@ const docTemplate = `{
                     "items": {
                         "type": "object"
                     }
+                },
+                "entryId": {
+                    "description": "v3 entry UUID (fs_entry.id) // v3 条目 UUID",
+                    "type": "string"
                 },
                 "id": {
                     "description": "History entry ID // 历史项 ID",
@@ -6860,6 +6884,11 @@ const docTemplate = `{
                     "type": "integer",
                     "example": 1700000000
                 },
+                "isConflictResolved": {
+                    "description": "Marks if conflict is resolved manually // 标记是否为手动解决冲突",
+                    "type": "boolean",
+                    "example": false
+                },
                 "mtime": {
                     "description": "Modification timestamp // 修改时间戳",
                     "type": "integer",
@@ -6904,6 +6933,10 @@ const docTemplate = `{
                 "ctime": {
                     "description": "Creation timestamp // 创建时间戳",
                     "type": "integer"
+                },
+                "entryId": {
+                    "description": "v3 entry UUID (fs_entry.id) // v3 条目 UUID",
+                    "type": "string"
                 },
                 "id": {
                     "description": "Note ID // 笔记 ID",
@@ -7445,12 +7478,16 @@ const docTemplate = `{
                     "description": "Base URL for sharing // 分享基础 URL",
                     "type": "string"
                 },
+                "entryId": {
+                    "description": "v3 entry UUID (fs_entry.id; the share URL rid for v3 shares) // v3 条目 UUID（分享 URL 中的 rid）",
+                    "type": "string"
+                },
                 "expiresAt": {
                     "description": "Expiration time // 过期时间",
                     "type": "string"
                 },
                 "id": {
-                    "description": "ID of the note or file table (primary resource ID) // 笔记或文件表 ID（主资源 ID）",
+                    "description": "ID of the note or file table (primary resource ID) // 笔记或文件表 ID（主资源 ID，v3 恒为 0）",
                     "type": "integer"
                 },
                 "isPassword": {
@@ -7480,6 +7517,10 @@ const docTemplate = `{
                 },
                 "createdAt": {
                     "description": "Created at // 创建时间",
+                    "type": "string"
+                },
+                "entryId": {
+                    "description": "v3 entry UUID（主资源；v3 分享必填） // v3 条目 UUID",
                     "type": "string"
                 },
                 "expiresAt": {

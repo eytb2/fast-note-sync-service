@@ -51,10 +51,9 @@ func newBackupSvc(
 	storageSvc *backupStorageStub,
 ) *backupService {
 	return &backupService{
-		backupRepo:     backupRepo,
-		noteRepo:       new(domainmocks.MockNoteRepository),
-		folderRepo:     new(domainmocks.MockFolderRepository),
-		fileRepo:       new(domainmocks.MockFileRepository),
+		backupRepo: backupRepo,
+		// v3 数据源字段（fsRepo/blobs）：本文件只测配置 CRUD，不触数据层，留空
+
 		vaultRepo:      vaultRepo,
 		storageService: storageSvc,
 		logger:         zap.NewNop(),

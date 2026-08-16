@@ -136,4 +136,15 @@ var (
 
 	// --- Sync Conflict Related (530-539) ---
 	ErrorSyncConflict = NewError(530)
+
+	// --- WS v3 Snapshot Sync Related (540-549) ---
+	ErrorV3SyncPlanFailed  = NewError(540)
+	ErrorV3CommitFailed    = NewError(541)
+	ErrorV3EpochConflict   = NewError(542)
+	ErrorV3BlobNotFound    = NewError(543)
+	ErrorV3BlobHashInvalid = NewError(544)
+	ErrorV3BlobMissing     = NewError(545)
+	ErrorV3SessionNotFound = NewError(546)
+	ErrorV3ApplyFailed     = NewError(547)
+	ErrorV3EntryNotFound   = NewError(548)
 )

@@ -128,7 +128,7 @@ func (t *NoteHistoryTask) handleNoteHistoryProcess(noteID, uid int64, key string
 
 	// 使用 App Container 中的 NoteHistoryService
 	ctx := context.Background()
-	err := t.app.NoteHistoryService.ProcessDelay(ctx, noteID, uid)
+	err := t.app.NoteHistoryServiceV3.ProcessDelay(ctx, noteID, uid)
 	if err != nil {
 		t.logger.Error("task log",
 			zap.String("task", "NoteHistory"),
@@ -153,7 +153,7 @@ func (t *NoteHistoryTask) handleNoteRenameMigrate(oldNoteID, newNoteID, uid int6
 
 	ctx := context.Background()
 
-	err := t.app.NoteService.Migrate(ctx, oldNoteID, newNoteID, uid)
+	err := t.app.NoteServiceV3.Migrate(ctx, oldNoteID, newNoteID, uid)
 	if err != nil {
 		t.logger.Error("task log",
 			zap.String("task", "NoteHistory"),
@@ -175,7 +175,7 @@ func (t *NoteHistoryTask) handleNoteRenameMigrate(oldNoteID, newNoteID, uid int6
 			zap.String("msg", "success"))
 	}
 
-	err = t.app.NoteHistoryService.Migrate(ctx, oldNoteID, newNoteID, uid)
+	err = t.app.NoteHistoryServiceV3.Migrate(ctx, oldNoteID, newNoteID, uid)
 	if err != nil {
 		t.logger.Error("task log",
 			zap.String("task", "NoteHistory"),
@@ -222,7 +222,7 @@ func (t *NoteHistoryTask) resumeTasks(ctx context.Context) {
 
 	y := 0
 	for _, uid := range uids {
-		notes, err := t.app.NoteService.ListNeedSnapshot(ctx, uid)
+		notes, err := t.app.NoteServiceV3.ListNeedSnapshot(ctx, uid)
 		if err != nil {
 			t.logger.Error("task log",
 				zap.String("task", t.Name()),

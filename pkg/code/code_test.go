@@ -107,4 +107,3 @@ func TestCode_Is(t *testing.T) {
 	assert.NotErrorIs(t, c1, c2)
 	assert.NotErrorIs(t, c1.WithDetails("detail"), c2)
 }
-

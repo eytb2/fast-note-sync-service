@@ -5,52 +5,52 @@ import "github.com/haierkeys/fast-note-sync-service/pkg/timex"
 // McpNoteDTO is a MCP-specific note DTO with time fields as string
 // McpNoteDTO 是 MCP 专用的笔记 DTO，时间字段使用 string 类型以匹配 MCP output schema
 type McpNoteDTO struct {
-	Path             string `json:"path"`             // Note path // 笔记路径
-	PathHash         string `json:"pathHash"`         // Path hash // 路径哈希
-	Content          string `json:"content"`          // Note content // 笔记内容
-	ContentHash      string `json:"contentHash"`      // Content hash // 内容哈希
-	Version          int64  `json:"version"`          // Version number // 版本号
-	Ctime            int64  `json:"ctime"`            // Creation timestamp // 创建时间戳
-	Mtime            int64  `json:"mtime"`            // Modification timestamp // 修改时间戳
-	Size             int64  `json:"size"`             // Note size // 笔记大小
-	ClientName       string `json:"clientName"`       // Client name // 客户端名称
-	ClientType       string `json:"clientType"`       // Client type // 客户端类型
-	ClientVersion    string `json:"clientVersion"`    // Client version // 客户端版本
-	UpdatedTimestamp int64  `json:"lastTime"`         // Record update timestamp // 记录更新时间戳
-	UpdatedAt        string `json:"updatedAt"`        // Updated at time // 更新时间
-	CreatedAt        string `json:"createdAt"`        // Created at time // 创建时间
+	Path             string `json:"path"`          // Note path // 笔记路径
+	PathHash         string `json:"pathHash"`      // Path hash // 路径哈希
+	Content          string `json:"content"`       // Note content // 笔记内容
+	ContentHash      string `json:"contentHash"`   // Content hash // 内容哈希
+	Version          int64  `json:"version"`       // Version number // 版本号
+	Ctime            int64  `json:"ctime"`         // Creation timestamp // 创建时间戳
+	Mtime            int64  `json:"mtime"`         // Modification timestamp // 修改时间戳
+	Size             int64  `json:"size"`          // Note size // 笔记大小
+	ClientName       string `json:"clientName"`    // Client name // 客户端名称
+	ClientType       string `json:"clientType"`    // Client type // 客户端类型
+	ClientVersion    string `json:"clientVersion"` // Client version // 客户端版本
+	UpdatedTimestamp int64  `json:"lastTime"`      // Record update timestamp // 记录更新时间戳
+	UpdatedAt        string `json:"updatedAt"`     // Updated at time // 更新时间
+	CreatedAt        string `json:"createdAt"`     // Created at time // 创建时间
 }
 
 // McpNoteNoContentDTO is a MCP-specific note DTO without content
 // McpNoteNoContentDTO 是 MCP 专用的不含内容的笔记 DTO
 type McpNoteNoContentDTO struct {
-	Path             string `json:"path"`             // Note path // 笔记路径
-	PathHash         string `json:"pathHash"`         // Path hash // 路径哈希
-	Version          int64  `json:"version"`          // Version number // 版本号
-	Ctime            int64  `json:"ctime"`            // Creation timestamp // 创建时间戳
-	Mtime            int64  `json:"mtime"`            // Modification timestamp // 修改时间戳
-	Size             int64  `json:"size"`             // Note size // 笔记大小
-	ClientName       string `json:"clientName"`       // Client name // 客户端名称
-	ClientType       string `json:"clientType"`       // Client type // 客户端类型
-	ClientVersion    string `json:"clientVersion"`    // Client version // 客户端版本
-	UpdatedTimestamp int64  `json:"lastTime"`         // Record update timestamp // 记录更新时间戳
-	UpdatedAt        string `json:"updatedAt"`        // Updated at time // 更新时间
-	CreatedAt        string `json:"createdAt"`        // Created at time // 创建时间
+	Path             string `json:"path"`          // Note path // 笔记路径
+	PathHash         string `json:"pathHash"`      // Path hash // 路径哈希
+	Version          int64  `json:"version"`       // Version number // 版本号
+	Ctime            int64  `json:"ctime"`         // Creation timestamp // 创建时间戳
+	Mtime            int64  `json:"mtime"`         // Modification timestamp // 修改时间戳
+	Size             int64  `json:"size"`          // Note size // 笔记大小
+	ClientName       string `json:"clientName"`    // Client name // 客户端名称
+	ClientType       string `json:"clientType"`    // Client type // 客户端类型
+	ClientVersion    string `json:"clientVersion"` // Client version // 客户端版本
+	UpdatedTimestamp int64  `json:"lastTime"`      // Record update timestamp // 记录更新时间戳
+	UpdatedAt        string `json:"updatedAt"`     // Updated at time // 更新时间
+	CreatedAt        string `json:"createdAt"`     // Created at time // 创建时间
 }
 
 // McpFileDTO is a MCP-specific file DTO with time fields as string
 // McpFileDTO 是 MCP 专用的文件 DTO，时间字段使用 string 类型以匹配 MCP output schema
 type McpFileDTO struct {
-	Path             string `json:"path"`             // File path // 文件路径
-	PathHash         string `json:"pathHash"`         // Path hash // 路径哈希
-	ContentHash      string `json:"contentHash"`      // Content hash // 内容哈希
-	Rename           int64  `json:"rename"`           // Rename flag // 重命名标记
-	Size             int64  `json:"size"`             // File size // 文件大小
-	Ctime            int64  `json:"ctime"`            // Creation timestamp // 创建时间戳
-	Mtime            int64  `json:"mtime"`            // Modification timestamp // 修改时间戳
-	UpdatedTimestamp int64  `json:"lastTime"`         // Updated timestamp // 更新时间戳
-	UpdatedAt        string `json:"updatedAt"`        // Updated at time // 更新时间
-	CreatedAt        string `json:"createdAt"`        // Created at time // 创建时间
+	Path             string `json:"path"`        // File path // 文件路径
+	PathHash         string `json:"pathHash"`    // Path hash // 路径哈希
+	ContentHash      string `json:"contentHash"` // Content hash // 内容哈希
+	Rename           int64  `json:"rename"`      // Rename flag // 重命名标记
+	Size             int64  `json:"size"`        // File size // 文件大小
+	Ctime            int64  `json:"ctime"`       // Creation timestamp // 创建时间戳
+	Mtime            int64  `json:"mtime"`       // Modification timestamp // 修改时间戳
+	UpdatedTimestamp int64  `json:"lastTime"`    // Updated timestamp // 更新时间戳
+	UpdatedAt        string `json:"updatedAt"`   // Updated at time // 更新时间
+	CreatedAt        string `json:"createdAt"`   // Created at time // 创建时间
 }
 
 // formatMcpTime formats timex.Time to string, returning empty string for zero time values

@@ -24,6 +24,7 @@ type UserShare struct {
 	UID          int64               `json:"uid"`            // 创建者 ID
 	ResType      string              `json:"res_type"`       // 资源类型: note, file
 	ResID        int64               `json:"res_id"`         // 资源 ID (note.id 或 file.id)
+	ResIDV3      string              `json:"res_id_v3"`      // v3 资源 ID (fs_entry.id UUID；v3 分享必填，旧字段保留兼容)
 	Resources    map[string][]string `json:"res"`            // 资源授权列表 (JSON: {"note":["id1"],"file":["id2"]})
 	Status       int64               `json:"status"`         // 状态: 1-有效, 2-已撤销
 	ViewCount    int64               `json:"view_count"`     // 统计：访问次数
@@ -41,6 +42,10 @@ type UserShareRepository interface {
 	GetByID(ctx context.Context, uid int64, id int64) (*UserShare, error)
 	GetByPath(ctx context.Context, uid int64, vaultID int64, pathHash string) (*UserShare, error)
 	GetByRes(ctx context.Context, uid int64, resType string, resID int64) (*UserShare, error)
+	// GetByResV3 按 v3 资源 ID（fs_entry UUID）取有效分享记录
+	GetByResV3(ctx context.Context, uid int64, resType string, resIDV3 string) (*UserShare, error)
+	// ListActiveNoteResIDV3s 返回该用户所有有效分享的 v3 note 资源 ID 列表
+	ListActiveNoteResIDV3s(ctx context.Context, uid int64) ([]string, error)
 	UpdateResources(ctx context.Context, uid int64, id int64, resources map[string][]string) error
 	UpdateStatus(ctx context.Context, uid int64, id int64, status int64) error
 	UpdateStatusByRes(ctx context.Context, uid int64, resType string, resID int64, status int64) error

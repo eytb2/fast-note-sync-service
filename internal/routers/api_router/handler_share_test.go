@@ -103,7 +103,7 @@ func TestShareHandler_NoteGet_Success(t *testing.T) {
 		Path: "test.md",
 	}
 
-	mockSvc.On("GetSharedNote", mock.Anything, "token_123", int64(1), "").
+	mockSvc.On("GetSharedNote", mock.Anything, "token_123", "1", "").
 		Return(mockData, nil)
 
 	handler := newTestShareHandler(mockSvc, nil)
@@ -128,7 +128,7 @@ func TestShareHandler_Query_Success(t *testing.T) {
 		},
 	}
 
-	mockSvc.On("GetShareByPath", mock.Anything, int64(1), "main", "hash_123").
+	mockSvc.On("GetShareByPath", mock.Anything, int64(1), "main", "test.md").
 		Return(shareData, nil)
 
 	mockTM.On("ShareGenerate", int64(1), int64(1), map[string][]string{"note": {"1"}}).

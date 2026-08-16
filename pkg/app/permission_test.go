@@ -35,7 +35,7 @@ func TestVerifyPermissions(t *testing.T) {
 		{"Complex mismatch P", "p:rest c:obsidian* f:note_r,note_w", "ws", "obsidian-desktop", "note_w", false},
 		{"Complex mismatch C", "p:rest,ws c:webgui f:note_r,note_w", "ws", "obsidian-desktop", "note_w", false},
 		{"Complex mismatch F", "p:rest,ws c:obsidian* f:note_r", "ws", "obsidian-desktop", "note_w", false},
-		
+
 		{"MCP Protocol Match", "p:mcp", "mcp", "cursor", "", true},
 		{"MCP Protocol Mismatch", "p:rest", "mcp", "cursor", "", false},
 	}

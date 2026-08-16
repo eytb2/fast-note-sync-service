@@ -15,24 +15,24 @@ func TestExtApiUrl_Priority_Logic(t *testing.T) {
 	// Simulate the priority logic used in HandleSSE
 	extApiUrl := "https://configured.example.com"
 	var absoluteBase string
-	
+
 	if extApiUrl != "" {
 		absoluteBase = extApiUrl
 	} else {
 		// Fallback logic
 		absoluteBase = "http://fallback.example.com"
 	}
-	
+
 	assert.Equal(t, "https://configured.example.com", absoluteBase,
 		"configured ExtApiUrl should take priority")
 }
 
 // TestExtApiUrl_Fallback_Logic tests fallback URL construction pattern
 func TestExtApiUrl_Fallback_Logic(t *testing.T) {
-	extApiUrl := ""  // Not configured
+	extApiUrl := "" // Not configured
 	host := "fallback.example.com"
 	xForwardedProto := "https"
-	
+
 	// Simulate fallback logic
 	var absoluteBase string
 	if extApiUrl == "" {
@@ -44,7 +44,7 @@ func TestExtApiUrl_Fallback_Logic(t *testing.T) {
 	} else {
 		absoluteBase = extApiUrl
 	}
-	
+
 	assert.Equal(t, "https://fallback.example.com", absoluteBase,
 		"should use X-Forwarded-Proto header for scheme when ExtApiUrl not configured")
 }
@@ -85,22 +85,22 @@ func TestExtApiUrl_TrailingSlash_Removal(t *testing.T) {
 // TestEndpointURL_Construction tests endpoint URL construction pattern
 func TestEndpointURL_Construction(t *testing.T) {
 	tests := []struct {
-		name      string
-		baseUrl   string
-		endpoint  string
-		expected  string
+		name     string
+		baseUrl  string
+		endpoint string
+		expected string
 	}{
 		{
-			name:      "basic endpoint",
-			baseUrl:   "https://api.example.com",
-			endpoint:  "/api/mcp/message",
-			expected:  "https://api.example.com/api/mcp/message",
+			name:     "basic endpoint",
+			baseUrl:  "https://api.example.com",
+			endpoint: "/api/mcp/message",
+			expected: "https://api.example.com/api/mcp/message",
 		},
 		{
-			name:      "with path prefix",
-			baseUrl:   "https://api.example.com/app",
-			endpoint:  "/api/mcp/message",
-			expected:  "https://api.example.com/app/api/mcp/message",
+			name:     "with path prefix",
+			baseUrl:  "https://api.example.com/app",
+			endpoint: "/api/mcp/message",
+			expected: "https://api.example.com/app/api/mcp/message",
 		},
 	}
 
@@ -119,17 +119,17 @@ func TestHandleMessage_UidInjection(t *testing.T) {
 	// Verify the injection pattern: extract from gin context, inject into request context
 	testCtx := context.Background()
 	const testUID int64 = 42
-	
+
 	// Simulate uid injection pattern used in HandleMessage
 	ctx := context.WithValue(testCtx, "uid", testUID)
-	assert.Equal(t, testUID, ctx.Value("uid"), 
+	assert.Equal(t, testUID, ctx.Value("uid"),
 		"uid should be injectable into request context for tool handlers")
 }
 
 // TestHandleMessage_ContextPropagation tests the context injection pattern
 func TestHandleMessage_ContextPropagation(t *testing.T) {
 	testCtx := context.Background()
-	
+
 	// Simulate what HandleMessage does
 	uidVal := int64(99)
 	ctx := context.WithValue(testCtx, "uid", uidVal)
@@ -141,7 +141,7 @@ func TestHandleMessage_ContextPropagation(t *testing.T) {
 // TestHandleMessage_NoUID tests context handling when uid is missing
 func TestHandleMessage_MissingUID(t *testing.T) {
 	testCtx := context.Background()
-	
+
 	// Simulate what HandleMessage does when uid is not set
 	var uidVal interface{} = nil
 	ctx := context.WithValue(testCtx, "uid", uidVal)
@@ -153,10 +153,10 @@ func TestHandleMessage_MissingUID(t *testing.T) {
 // TestSchemeDetection_XForwardedProto tests HTTPS detection from X-Forwarded-Proto header
 func TestSchemeDetection_XForwardedProto(t *testing.T) {
 	tests := []struct {
-		name               string
-		xForwardedProto    string
-		tlsConnState       bool
-		expectedScheme     string
+		name            string
+		xForwardedProto string
+		tlsConnState    bool
+		expectedScheme  string
 	}{
 		{
 			name:            "X-Forwarded-Proto is https",
@@ -191,7 +191,7 @@ func TestSchemeDetection_XForwardedProto(t *testing.T) {
 			if tt.tlsConnState || tt.xForwardedProto == "https" {
 				scheme = "https"
 			}
-			
+
 			assert.Equal(t, tt.expectedScheme, scheme)
 		})
 	}

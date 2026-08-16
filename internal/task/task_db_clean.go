@@ -41,7 +41,7 @@ func (t *DbCleanTask) Run(ctx context.Context) error {
 	var errs []error
 
 	// 调用各 Service 的 CleanupByTime 方法
-	if err := t.app.NoteService.CleanupByTime(ctx, cutoffTime); err != nil {
+	if err := t.app.NoteServiceV3.CleanupByTime(ctx, cutoffTime); err != nil {
 		errs = append(errs, err)
 		t.logger.Error("cleanup failed",
 			zap.String("task", t.Name()),
@@ -53,7 +53,7 @@ func (t *DbCleanTask) Run(ctx context.Context) error {
 			zap.String("service", "NoteService"))
 	}
 
-	if err := t.app.FileService.CleanupByTime(ctx, cutoffTime); err != nil {
+	if err := t.app.FileServiceV3.CleanupByTime(ctx, cutoffTime); err != nil {
 		errs = append(errs, err)
 		t.logger.Error("cleanup failed",
 			zap.String("task", t.Name()),
@@ -78,7 +78,7 @@ func (t *DbCleanTask) Run(ctx context.Context) error {
 	}
 
 	// 清理 NoteHistory
-	if err := t.app.NoteHistoryService.CleanupByTime(ctx, cutoffTime, t.historyKeepVersions); err != nil {
+	if err := t.app.NoteHistoryServiceV3.CleanupByTime(ctx, cutoffTime, t.historyKeepVersions); err != nil {
 		errs = append(errs, err)
 		t.logger.Error("cleanup failed",
 			zap.String("task", t.Name()),
@@ -105,7 +105,7 @@ func (t *DbCleanTask) Run(ctx context.Context) error {
 	}
 
 	// 清理重复记录 (按 Path)
-	if err := t.app.NoteService.CleanDuplicateNotesAll(ctx); err != nil {
+	if err := t.app.NoteServiceV3.CleanDuplicateNotesAll(ctx); err != nil {
 		errs = append(errs, err)
 		t.logger.Error("cleanup duplicate failed",
 			zap.String("task", t.Name()),
@@ -117,7 +117,7 @@ func (t *DbCleanTask) Run(ctx context.Context) error {
 			zap.String("service", "NoteService"))
 	}
 
-	if err := t.app.FileService.CleanDuplicateFilesAll(ctx); err != nil {
+	if err := t.app.FileServiceV3.CleanDuplicateFilesAll(ctx); err != nil {
 		errs = append(errs, err)
 		t.logger.Error("cleanup duplicate failed",
 			zap.String("task", t.Name()),

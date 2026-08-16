@@ -12,59 +12,27 @@ import (
 )
 
 func initWebSocketRoutes(wss *pkgapp.WebsocketServer, appContainer *app.App) {
-	// Register Protobuf Hooks
-	// 注册 Protobuf 编解码钩子
-	websocket_router.RegisterProtobufHooks(wss)
-
 	// Create WebSocket Handlers (injected App Container)
 	// 创建 WebSocket Handlers（注入 App Container）
-	noteWSHandler := websocket_router.NewNoteWSHandler(appContainer)
-	folderWSHandler := websocket_router.NewFolderWSHandler(appContainer)
-	fileWSHandler := websocket_router.NewFileWSHandler(appContainer)
-	settingWSHandler := websocket_router.NewSettingWSHandler(appContainer)
+	wsHandler := websocket_router.NewWSHandler(appContainer)
+	syncV3WSHandler := websocket_router.NewSyncV3WSHandler(appContainer)
 
-	// Note
-	wss.Use(websocket_router.NoteReceiveModify, noteWSHandler.NoteModify)
-	wss.Use(websocket_router.NoteReceiveDelete, noteWSHandler.NoteDelete)
-	wss.Use(websocket_router.NoteReceiveRename, noteWSHandler.NoteRename)
-	wss.Use(websocket_router.NoteReceiveRePush, noteWSHandler.NoteRePush)
-	wss.Use(websocket_router.NoteReceiveCheck, noteWSHandler.NoteModifyCheck)
-	wss.Use(websocket_router.NoteReceiveSync, noteWSHandler.NoteSync)
-	wss.Use(websocket_router.NoteSyncPageAck, noteWSHandler.NoteSyncPageAck)
+	// WS v3 git-style snapshot sync (reconcile / commit / blob transfer)
+	// WS v3 git 式快照同步（对账 / 提交 / blob 传输）
+	wss.Use(websocket_router.V3ReceiveSync, syncV3WSHandler.Sync)
+	wss.Use(websocket_router.V3ReceiveCommit, syncV3WSHandler.Commit)
+	wss.Use(websocket_router.V3ReceiveBlobUploadOpen, syncV3WSHandler.BlobUploadOpen)
+	wss.Use(websocket_router.V3ReceiveBlobDownload, syncV3WSHandler.BlobDownload)
+	wss.UseBinary(websocket_router.VaultBlobMsgType, syncV3WSHandler.BlobUploadChunkBinary)
 
-	// Folder
-	wss.Use(websocket_router.FolderReceiveSync, folderWSHandler.FolderSync)
-	wss.Use(websocket_router.FolderReceiveModify, folderWSHandler.FolderModify)
-	wss.Use(websocket_router.FolderReceiveDelete, folderWSHandler.FolderDelete)
-	wss.Use(websocket_router.FolderReceiveRename, folderWSHandler.FolderRename)
-	wss.Use(websocket_router.FolderSyncPageAck, folderWSHandler.FolderSyncPageAck)
+	// P8: v3 protobuf 传输编码钩子（连接协商 protocol=protobuf 后生效，JSON 恒为兜底）
+	websocket_router.RegisterV3ProtobufHooks(wss)
 
-	// Setting
-	wss.Use(websocket_router.SettingReceiveModify, settingWSHandler.SettingModify)
-	wss.Use(websocket_router.SettingReceiveDelete, settingWSHandler.SettingDelete)
-	wss.Use(websocket_router.SettingReceiveCheck, settingWSHandler.SettingModifyCheck)
-	wss.Use(websocket_router.SettingReceiveSync, settingWSHandler.SettingSync)
-	wss.Use(websocket_router.SettingReceiveClear, settingWSHandler.SettingClear)
-	wss.Use(websocket_router.SettingReceiveRePush, settingWSHandler.SettingRePush)
-	wss.Use(websocket_router.SettingSyncPageAck, settingWSHandler.SettingSyncPageAck)
-
-	// Attachment
-	wss.Use(websocket_router.FileReceiveSync, fileWSHandler.FileSync)
-	wss.Use(websocket_router.FileReceiveUploadCheck, fileWSHandler.FileUploadCheck)
-	wss.Use(websocket_router.FileReceiveRename, fileWSHandler.FileRename)
-	wss.Use(websocket_router.FileReceiveDelete, fileWSHandler.FileDelete)
-	wss.Use(websocket_router.FileReceiveChunkDownload, fileWSHandler.FileChunkDownload)
-	wss.Use(websocket_router.FileReceiveRePush, fileWSHandler.FileRePush)
-	wss.Use(websocket_router.FileSyncPageAck, fileWSHandler.FileSyncPageAck)
-
-	// Attachment chunk upload
-	wss.UseBinary(websocket_router.VaultFileMsgType, fileWSHandler.FileUploadChunkBinary)
-
-	// Inject Message Interceptor to handle unauthenticated checks, Vault restrictions, RBAC checks, and error rollbacks
-	// 注入消息拦截器，处理未登录验证、Vault笔记库限制校验、RBAC权限检查以及写失败回滚机制
+	// Inject Message Interceptor to handle unauthenticated checks, Vault restrictions, and RBAC checks
+	// 注入消息拦截器，处理未登录验证、Vault笔记库限制校验、RBAC权限检查
 	wss.UseInterceptor(websocket_router.NewMessageInterceptor(appContainer))
 
-	wss.UseUserVerify(noteWSHandler.UserInfo)
+	wss.UseUserVerify(wsHandler.UserInfo)
 
 	// Inject Token Verification to decouple pkg/app from internal/service
 	wss.UseTokenVerify(func(ctx context.Context, uid, tokenID int64, nonce string, reqClientType, reqClientName, reqClientVersion, reqUserAgent, reqIP string) (string, string, error) {

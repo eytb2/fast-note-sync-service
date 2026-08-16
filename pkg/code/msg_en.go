@@ -130,4 +130,14 @@ var en_messages = map[int]string{
 	520: "Cloudflared download failed",
 	521: "Cloudflared binary not found, please download the tunnel program first",
 	530: "Sync conflict detected, a conflict copy has been created",
+	// WS v3 Snapshot Sync
+	540: "Snapshot reconcile failed to build sync plan",
+	541: "Manifest commit failed",
+	542: "Epoch conflict, the client baseline is stale, please re-reconcile",
+	543: "Blob not found",
+	544: "Blob hash verification failed",
+	545: "Blob has not been uploaded yet",
+	546: "Upload session not found or expired",
+	547: "Manifest changes could not be applied",
+	548: "Entry not found or deleted",
 }

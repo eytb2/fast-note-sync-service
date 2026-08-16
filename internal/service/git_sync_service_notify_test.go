@@ -19,11 +19,11 @@ func newTestGitSyncService(repo domain.GitSyncRepository) *gitSyncService {
 	vaultRepo.On("GetByID", mock.Anything, mock.Anything, mock.Anything).
 		Return(&domain.Vault{Name: "test-vault"}, nil)
 
+	// v3 数据源（fsRepo/blobs）在 NotifyUpdated 缓存测试中不触达，传 nil
 	svc := NewGitSyncService(
 		repo,
-		new(domainmocks.MockNoteRepository),
-		new(domainmocks.MockFolderRepository),
-		new(domainmocks.MockFileRepository),
+		nil,
+		nil,
 		vaultRepo,
 		new(domainmocks.MockSettingRepository),
 		&appconfig.GitConfig{},

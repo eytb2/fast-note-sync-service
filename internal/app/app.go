@@ -253,6 +253,12 @@ func (a *App) SetCheckVersionReleases(serviceReleases, pluginReleases []pkgapp.H
 // SetWSS 设置 WebSocket 服务器引用并绑定同步钩子
 func (a *App) SetWSS(wss *pkgapp.WebsocketServer) {
 	a.wss = wss
+	if a.wss != nil && a.Services != nil {
+		// v3 门面广播出口迟绑定：此后 REST/MCP 写入可实时分发 NotifyManifest
+		if a.Services.ManifestBroadcaster != nil {
+			a.Services.ManifestBroadcaster.Bind(wss)
+		}
+	}
 	if a.wss != nil && a.Services != nil && a.Services.TokenService != nil {
 		a.Services.TokenService.SetSyncHandler(func(uid int64, tokenID int64, scope string, kick bool) {
 			if kick {
@@ -376,28 +382,23 @@ func (a *App) WriteQueueManager() *writequeue.Manager {
 	return a.writeQueueMgr
 }
 
-// GetNoteService gets NoteService, supports setting client info
-// GetNoteService 获取 NoteService，支持设置客户端信息
-func (a *App) GetNoteService(clientType, clientName, clientVersion string) service.NoteService {
+// P5 功能回接：v3 门面版 getter —— REST/MCP/静态路由/后台任务用。
+func (a *App) GetNoteServiceV3(clientType, clientName, clientVersion string) service.NoteService {
 	if clientType != "" || clientName != "" || clientVersion != "" {
-		return a.NoteService.WithClient(clientType, clientName, clientVersion)
+		return a.NoteServiceV3.WithClient(clientType, clientName, clientVersion)
 	}
-	return a.NoteService
+	return a.NoteServiceV3
 }
 
-// GetFolderService returns FolderService instance with client information
-// GetFolderService 返回带有客户端信息的 FolderService 示例
-func (a *App) GetFolderService(clientType, clientName, clientVersion string) service.FolderService {
-	return a.FolderService.WithClient(clientType, clientName, clientVersion)
+func (a *App) GetFolderServiceV3(clientType, clientName, clientVersion string) service.FolderService {
+	return a.FolderServiceV3.WithClient(clientType, clientName, clientVersion)
 }
 
-// GetFileService gets FileService, supports setting client info
-// GetFileService 获取 FileService，支持设置客户端信息
-func (a *App) GetFileService(clientType, clientName, clientVersion string) service.FileService {
+func (a *App) GetFileServiceV3(clientType, clientName, clientVersion string) service.FileService {
 	if clientType != "" || clientName != "" || clientVersion != "" {
-		return a.FileService.WithClient(clientType, clientName, clientVersion)
+		return a.FileServiceV3.WithClient(clientType, clientName, clientVersion)
 	}
-	return a.FileService
+	return a.FileServiceV3
 }
 
 // GetSettingService gets SettingService, supports setting client info
@@ -647,8 +648,6 @@ func (a *App) Shutdown(ctx context.Context) error {
 			a.logger.Warn("Share service shutdown error", zap.Error(err))
 		}
 	}
-
-
 
 	// 0.2 Shutdown CloudflareService
 	if a.CloudflareService != nil {

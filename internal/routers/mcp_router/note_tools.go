@@ -10,14 +10,13 @@ import (
 	"github.com/haierkeys/fast-note-sync-service/internal/app"
 	"github.com/haierkeys/fast-note-sync-service/internal/dto"
 	pkgapp "github.com/haierkeys/fast-note-sync-service/pkg/app"
-	"github.com/haierkeys/fast-note-sync-service/pkg/code"
 	"github.com/haierkeys/fast-note-sync-service/pkg/util"
 	"github.com/mark3labs/mcp-go/mcp"
 	mcpsrv "github.com/mark3labs/mcp-go/server"
 )
 
 func registerNoteTools(srv *mcpsrv.MCPServer, appContainer *app.App, wss *pkgapp.WebsocketServer) {
-	noteSvc := appContainer.NoteService
+	noteSvc := appContainer.NoteServiceV3
 	cfg := appContainer.Config()
 
 	// 1. List Notes
@@ -153,7 +152,6 @@ func registerNoteTools(srv *mcpsrv.MCPServer, appContainer *app.App, wss *pkgapp
 			return mcp.NewToolResultError(err.Error()), nil
 		}
 
-		wss.BroadcastToUser(uid, code.Success.WithData(note).WithVault(vault), "NoteSyncModify")
 		fallback := fmt.Sprintf("Successfully saved note: %s (Version: %d)", note.Path, note.Version)
 		return mcp.NewToolResultStructured(mcpNoteMutationOutput{
 			Vault:     vault,
@@ -195,7 +193,6 @@ func registerNoteTools(srv *mcpsrv.MCPServer, appContainer *app.App, wss *pkgapp
 			return mcp.NewToolResultError(err.Error()), nil
 		}
 
-		wss.BroadcastToUser(uid, code.Success.WithData(note).WithVault(vault), "NoteSyncDelete")
 		fallback := fmt.Sprintf("Deleted note: %s", note.Path)
 		return mcp.NewToolResultStructured(mcpNoteMutationOutput{
 			Vault:     vault,
@@ -240,17 +237,6 @@ func registerNoteTools(srv *mcpsrv.MCPServer, appContainer *app.App, wss *pkgapp
 			return mcp.NewToolResultError(err.Error()), nil
 		}
 
-		wss.BroadcastToUser(uid, code.Success.WithData(dto.NoteSyncRenameMessage{
-			Path:             newNote.Path,
-			PathHash:         newNote.PathHash,
-			ContentHash:      newNote.ContentHash,
-			Ctime:            newNote.Ctime,
-			Mtime:            newNote.Mtime,
-			Size:             newNote.Size,
-			OldPath:          oldNote.Path,
-			OldPathHash:      oldNote.PathHash,
-			UpdatedTimestamp: newNote.UpdatedTimestamp,
-		}).WithVault(vault), "NoteSyncRename")
 		fallback := fmt.Sprintf("Renamed note from %s to %s", oldNote.Path, newNote.Path)
 		return mcp.NewToolResultStructured(mcpNoteMutationOutput{
 			Vault:     vault,
@@ -292,7 +278,6 @@ func registerNoteTools(srv *mcpsrv.MCPServer, appContainer *app.App, wss *pkgapp
 			return mcp.NewToolResultError(err.Error()), nil
 		}
 
-		wss.BroadcastToUser(uid, code.Success.WithData(note).WithVault(vault), "NoteSyncModify")
 		fallback := fmt.Sprintf("Restored note: %s", note.Path)
 		return mcp.NewToolResultStructured(mcpNoteMutationOutput{
 			Vault:     vault,
@@ -391,7 +376,6 @@ func registerNoteTools(srv *mcpsrv.MCPServer, appContainer *app.App, wss *pkgapp
 			return mcp.NewToolResultError(err.Error()), nil
 		}
 
-		wss.BroadcastToUser(uid, code.Success.WithData(note).WithVault(vault), "NoteSyncModify")
 		fallback := fmt.Sprintf("Frontmatter patched for %s", note.Path)
 		return mcp.NewToolResultStructured(mcpNoteMutationOutput{
 			Vault:     vault,
@@ -435,7 +419,6 @@ func registerNoteTools(srv *mcpsrv.MCPServer, appContainer *app.App, wss *pkgapp
 			return mcp.NewToolResultError(err.Error()), nil
 		}
 
-		wss.BroadcastToUser(uid, code.Success.WithData(note).WithVault(vault), "NoteSyncModify")
 		fallback := fmt.Sprintf("Appended content to %s", note.Path)
 		return mcp.NewToolResultStructured(mcpNoteMutationOutput{
 			Vault:     vault,
@@ -479,7 +462,6 @@ func registerNoteTools(srv *mcpsrv.MCPServer, appContainer *app.App, wss *pkgapp
 			return mcp.NewToolResultError(err.Error()), nil
 		}
 
-		wss.BroadcastToUser(uid, code.Success.WithData(note).WithVault(vault), "NoteSyncModify")
 		fallback := fmt.Sprintf("Prepended content to %s", note.Path)
 		return mcp.NewToolResultStructured(mcpNoteMutationOutput{
 			Vault:     vault,
@@ -544,7 +526,6 @@ func registerNoteTools(srv *mcpsrv.MCPServer, appContainer *app.App, wss *pkgapp
 			return mcp.NewToolResultError(err.Error()), nil
 		}
 
-		wss.BroadcastToUser(uid, code.Success.WithData(res.Note).WithVault(vault), "NoteSyncModify")
 		fallback := fmt.Sprintf("Replaced %d occurrences", res.MatchCount)
 		return mcp.NewToolResultStructured(mcpNoteReplaceOutput{
 			Vault:      vault,

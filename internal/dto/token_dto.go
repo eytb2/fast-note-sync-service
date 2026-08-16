@@ -43,18 +43,18 @@ type TokenActiveClient struct {
 // TokenResponse defines the response structure for a token
 // TokenResponse 定义令牌的响应结构
 type TokenResponse struct {
-	ID         int64      `json:"id"`                   // Token ID // 令牌 ID
-	Scope      string     `json:"scope"`                // Permission Scope // 权限范围
-	ClientType string     `json:"clientType"`           // Client Type // 客户端类型
-	BoundIP    string     `json:"boundIp"`              // Bound IP // 绑定 IP
-	UserAgent  string     `json:"userAgent"`            // User Agent // 用户代理
-	Vaults     string     `json:"vaults"`               // Restrict Vaults // 限制笔记库
-	IssueType  int        `json:"issueType"`            // Issue Type // 签发类型
-	LastUsedAt timex.Time `json:"lastUsedAt"`           // Last Used Time // 最后使用时间
-	ExpiredAt  timex.Time `json:"expiredAt"`            // Expiration Time // 过期时间
-	CreatedAt  timex.Time `json:"createdAt"`            // Creation Time // 创建时间
-	IsWsOnline    bool                `json:"isWsOnline"`    // Is WS Online // WS 是否在线
-	ActiveClients []string            `json:"activeClients"` // Active Clients // 活跃客户端
+	ID            int64      `json:"id"`            // Token ID // 令牌 ID
+	Scope         string     `json:"scope"`         // Permission Scope // 权限范围
+	ClientType    string     `json:"clientType"`    // Client Type // 客户端类型
+	BoundIP       string     `json:"boundIp"`       // Bound IP // 绑定 IP
+	UserAgent     string     `json:"userAgent"`     // User Agent // 用户代理
+	Vaults        string     `json:"vaults"`        // Restrict Vaults // 限制笔记库
+	IssueType     int        `json:"issueType"`     // Issue Type // 签发类型
+	LastUsedAt    timex.Time `json:"lastUsedAt"`    // Last Used Time // 最后使用时间
+	ExpiredAt     timex.Time `json:"expiredAt"`     // Expiration Time // 过期时间
+	CreatedAt     timex.Time `json:"createdAt"`     // Creation Time // 创建时间
+	IsWsOnline    bool       `json:"isWsOnline"`    // Is WS Online // WS 是否在线
+	ActiveClients []string   `json:"activeClients"` // Active Clients // 活跃客户端
 }
 
 // TokenCreateResponse defines the response structure when creating a token

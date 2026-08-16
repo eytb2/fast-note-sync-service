@@ -1,8 +1,6 @@
 package websocket_router
 
 import (
-	"strings"
-
 	"github.com/haierkeys/fast-note-sync-service/internal/app"
 	pkgapp "github.com/haierkeys/fast-note-sync-service/pkg/app"
 	"github.com/haierkeys/fast-note-sync-service/pkg/code"
@@ -71,9 +69,8 @@ func checkVaultAccess(c *pkgapp.WebsocketClient, msg *pkgapp.WebSocketMessage, l
 	return true
 }
 
-// checkRBAC 将操作映射到 RBAC 权限功能点并校验客户端权限，权限不足时触发回滚。
+// checkRBAC 将操作映射到 RBAC 权限功能点并校验客户端权限。
 // checkRBAC maps the message type to an RBAC function and verifies the client's scope.
-// On denial it delegates to handlePermissionDenied for client-side rollback.
 func checkRBAC(c *pkgapp.WebsocketClient, msg *pkgapp.WebSocketMessage, logger interface {
 	Warn(string, ...zapcore.Field)
 	Info(string, ...zapcore.Field)
@@ -92,53 +89,35 @@ func checkRBAC(c *pkgapp.WebsocketClient, msg *pkgapp.WebSocketMessage, logger i
 	return handlePermissionDenied(c, msg, function, logger)
 }
 
-// resolveRBACFunction 将 WebSocket 消息类型映射到 RBAC 功能点字符串。
+// resolveRBACFunction 将 WebSocket 消息类型映射到 RBAC 权限功能点字符串。
 // resolveRBACFunction maps a WebSocket message type to its corresponding RBAC function key.
 // Returns an empty string if no permission check is required for the given type.
 func resolveRBACFunction(msgType string) string {
 	switch msgType {
-	case NoteReceiveSync, NoteReceiveCheck, NoteReceiveRePush, FolderReceiveSync:
+	case V3ReceiveSync, V3ReceiveBlobDownload:
 		return "note_r"
-	case NoteReceiveModify, NoteReceiveDelete, NoteReceiveRename, FolderReceiveModify, FolderReceiveDelete, FolderReceiveRename:
+	case V3ReceiveCommit, V3ReceiveBlobUploadOpen:
+		// v3 提交统一读写全部资源类型；对账协议本身可自愈，权限拒绝无需回滚补偿
 		return "note_w"
-	case FileReceiveChunkDownload, FileReceiveRePush, FileReceiveSync:
-		return "file_r"
-	case FileReceiveUploadCheck, FileReceiveDelete, FileReceiveRename:
-		return "file_w"
-	case SettingReceiveSync, SettingReceiveCheck, SettingReceiveRePush:
-		return "config_r"
-	case SettingReceiveModify, SettingReceiveDelete, SettingReceiveClear:
-		return "config_w"
 	}
 	return ""
 }
 
-// handlePermissionDenied 在权限拒绝后向客户端发送错误响应，并对写操作触发回滚同步。
-// handlePermissionDenied sends an error response and, for write operations,
-// triggers a compensating action (rename-back or re-push) to keep the client consistent.
-// Always returns false to halt message processing.
+// handlePermissionDenied 在权限拒绝后向客户端发送错误响应。
+// v3 快照协议以对账收敛，客户端收到拒绝后重新对账即可，无需旧协议的重命名回滚/重推补偿。
+// handlePermissionDenied sends an error response and halts message processing.
+// The v3 snapshot protocol self-heals via reconcile, so no compensating actions are needed.
 func handlePermissionDenied(c *pkgapp.WebsocketClient, msg *pkgapp.WebSocketMessage, function string, logger interface {
 	Info(string, ...zapcore.Field)
 }) bool {
 	resPath := resolveResourcePath(msg)
 	c.ToResponse(code.ErrorAuthTokenScopeRestricted.WithDetails("Permission denied: "+resPath), msg.Type+"Ack")
-
-	if !strings.HasSuffix(function, "_w") {
-		return false
-	}
-
-	// 写操作：优先尝试重命名回滚，失败则触发重推
-	// Write operations: attempt rename-rollback first, fall back to re-push
-	if strings.HasSuffix(msg.Type, "Rename") && rollbackRename(c, msg, function, logger) {
-		return false
-	}
-	triggerRePush(c, msg, function, logger)
 	return false
 }
 
 // resolveResourcePath 从消息数据中提取资源路径用于错误描述，优先取 path，其次取 name，最后回退到消息类型。
 // resolveResourcePath extracts a human-readable resource identifier from message data,
-// falling back to the message type when neither path nor name are present.
+// falling back to the message type when neither path nor name is present.
 func resolveResourcePath(msg *pkgapp.WebSocketMessage) string {
 	var pathInfo struct {
 		Path string `json:"path"`
@@ -152,88 +131,4 @@ func resolveResourcePath(msg *pkgapp.WebSocketMessage) string {
 		return pathInfo.Name
 	}
 	return msg.Type
-}
-
-// rollbackRename 对重命名操作发送反向重命名消息，使客户端回退到原始路径。
-// rollbackRename sends a compensating rename message so the client reverts to the original path.
-// Returns true if the rollback message was successfully dispatched.
-func rollbackRename(c *pkgapp.WebsocketClient, msg *pkgapp.WebSocketMessage, function string, logger interface {
-	Info(string, ...zapcore.Field)
-}) bool {
-	var renameData map[string]interface{}
-	if err := json.Unmarshal(msg.Data, &renameData); err != nil {
-		return false
-	}
-
-	vault, _ := renameData["vault"].(string)
-	newPath, _ := renameData["path"].(string)
-	newPathHash, _ := renameData["pathHash"].(string)
-	oldPath, _ := renameData["oldPath"].(string)
-	oldPathHash, _ := renameData["oldPathHash"].(string)
-
-	if newPath == "" || oldPath == "" {
-		return false
-	}
-
-	syncRenameAction := resolveSyncRenameAction(function, msg.Type)
-	if syncRenameAction == "" {
-		return false
-	}
-
-	rollbackData := map[string]interface{}{
-		"path":        oldPath,
-		"pathHash":    oldPathHash,
-		"oldPath":     newPath,
-		"oldPathHash": newPathHash,
-	}
-	c.ToResponse(code.Success.WithData(rollbackData).WithVault(vault), syncRenameAction)
-	// 重命名回滚后无需再触发 RePush / No subsequent re-push needed after rename rollback
-	return true
-}
-
-// resolveSyncRenameAction 根据 RBAC 功能点和消息类型确定用于回滚的同步重命名动作名称。
-// resolveSyncRenameAction returns the compensating sync-rename action name for a given function and message type.
-func resolveSyncRenameAction(function, msgType string) string {
-	switch function {
-	case "note_w":
-		if strings.Contains(msgType, "Folder") {
-			return FolderSyncRename
-		}
-		return NoteSyncRename
-	case "file_w":
-		return FileSyncRename
-	}
-	return ""
-}
-
-// triggerRePush 对写操作权限拒绝后触发对应的重推动作，保证客户端数据一致性。
-// triggerRePush invokes the corresponding re-push handler to restore client-side consistency
-// after a write operation is denied.
-func triggerRePush(c *pkgapp.WebsocketClient, msg *pkgapp.WebSocketMessage, function string, logger interface {
-	Info(string, ...zapcore.Field)
-}) {
-	rePushAction := resolveRePushAction(function)
-	if rePushAction == "" {
-		return
-	}
-	if h, ok := c.Server.GetHandler(rePushAction); ok {
-		logger.Info("WS Trigger RePush on permission denied",
-			zap.String("action", rePushAction),
-			zap.String("uid", c.User.ID))
-		h(c, msg)
-	}
-}
-
-// resolveRePushAction 根据 RBAC 功能点返回对应的重推动作名称。
-// resolveRePushAction returns the re-push action name associated with the given RBAC write function.
-func resolveRePushAction(function string) string {
-	switch function {
-	case "note_w":
-		return NoteReceiveRePush
-	case "file_w":
-		return FileReceiveRePush
-	case "config_w":
-		return SettingReceiveRePush
-	}
-	return ""
 }
