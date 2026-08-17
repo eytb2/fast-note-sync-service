@@ -10,6 +10,7 @@ import (
 	"net/http"
 	"os"
 	"path/filepath"
+	"regexp"
 	"runtime"
 	"runtime/debug"
 	"strings"
@@ -1368,6 +1369,62 @@ func (h *AdminControlHandler) KickWSClient(c *gin.Context) {
 	}
 
 	response.ToResponse(code.Success.WithDetails("Client kicked successfully"))
+}
+
+// cliVersionRe constrains the CLI upgrade version param to a strict x.y.z form.
+// The value is used in a file path and a GitHub URL — no traversal, no slashes.
+var cliVersionRe = regexp.MustCompile(`^[0-9]+\.[0-9]+\.[0-9]+$`)
+
+// UpgradeCLI proxies the CLI binary from the self-hosted plugin release.
+// LAN clients (e.g. headless CLI hosts) often cannot reach github.com directly;
+// the server downloads fns-cli.mjs once with its own egress and caches it.
+// @Summary Download CLI binary
+// @Description Proxy fns-cli.mjs from the plugin GitHub release (cached server-side)
+// @Tags System
+// @Param version query string true "CLI version (x.y.z)"
+// @Produce octet-stream
+// @Security UserAuthToken
+// @Router /api/upgrade/cli [get]
+func (h *AdminControlHandler) UpgradeCLI(c *gin.Context) {
+	response := pkgapp.NewResponse(c)
+	versionRaw := c.Query("version")
+	if !cliVersionRe.MatchString(versionRaw) {
+		response.ToResponse(code.ErrorInvalidParams.WithDetails("version must be x.y.z"))
+		return
+	}
+
+	cfg := h.App.Config()
+	cacheDir := filepath.Join(cfg.App.TempPath, "upgrade-cli")
+	if err := os.MkdirAll(cacheDir, 0755); err != nil {
+		response.ToResponse(code.Failed.WithDetails("cache dir: " + err.Error()))
+		return
+	}
+	cached := filepath.Join(cacheDir, "fns-cli-"+versionRaw+".mjs")
+
+	if _, err := os.Stat(cached); err != nil {
+		// 与插件同仓库同 release 分发（tag 无 v 前缀，资产名固定 fns-cli.mjs）
+		url := fmt.Sprintf("https://github.com/eytb2/obsidian-fast-note-sync/releases/download/%s/fns-cli.mjs", versionRaw)
+		h.App.Logger().Info("cli upgrade: fetching from release", zap.String("url", url))
+		if err := h.downloadFile(c.Request.Context(), url, cached); err != nil {
+			_ = os.Remove(cached)
+			h.App.Logger().Error("cli upgrade: download failed", zap.Error(err))
+			response.ToResponse(code.Failed.WithDetails("download failed: " + err.Error()))
+			return
+		}
+	}
+
+	f, err := os.Open(cached)
+	if err != nil {
+		response.ToResponse(code.Failed.WithDetails("open cached: " + err.Error()))
+		return
+	}
+	defer f.Close()
+	st, _ := f.Stat()
+	c.Header("Content-Type", "text/javascript; charset=utf-8")
+	c.Header("Content-Disposition", fmt.Sprintf(`attachment; filename="fns-cli-%s.mjs"`, versionRaw))
+	c.Header("Content-Length", fmt.Sprintf("%d", st.Size()))
+	// 客户端是 CLI：不走 envelope，直接回字节流
+	_, _ = io.Copy(c.Writer, f)
 }
 
 func (h *AdminControlHandler) downloadFile(ctx context.Context, url string, dest string) error {

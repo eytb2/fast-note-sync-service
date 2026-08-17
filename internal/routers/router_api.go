@@ -108,6 +108,8 @@ func registerAPIRoutes(r *gin.Engine, appContainer *app.App, wss *pkgapp.Websock
 			// Admin config interface
 			// 管理员配置接口
 			auth.GET("/admin/upgrade", adminControlHandler.Upgrade)
+			// CLI 自动升级中转：LAN 客户端直连不了 GitHub，由服务器代取并缓存
+			auth.GET("/upgrade/cli", adminControlHandler.UpgradeCLI)
 			auth.GET("/admin/check", adminControlHandler.CheckAdmin)
 			auth.GET("/admin/ws_clients", adminControlHandler.GetWSClients)
 			auth.DELETE("/admin/ws_client/:traceId", adminControlHandler.KickWSClient)
