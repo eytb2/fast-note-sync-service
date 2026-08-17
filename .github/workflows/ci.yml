@@ -1,0 +1,32 @@
+name: CI
+
+# 普通 push / PR 的编译验证（release.yml 只在 internal/app/version.go 版本变更时
+# 触发，日常代码推送此前完全没有 CI —— 2026-08-17 补）。无 actor 门禁。
+on:
+  push:
+    branches: ["master"]
+  pull_request:
+    branches: ["master"]
+
+permissions:
+  contents: read
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v6
+
+      - uses: actions/setup-go@v6
+        with:
+          go-version-file: "go.mod"
+          cache: true
+
+      - name: Build
+        run: go build ./...
+
+      - name: Vet
+        run: go vet ./...
+
+      - name: Test
+        run: go test ./... -count=1 -timeout 15m

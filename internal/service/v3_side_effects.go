@@ -134,15 +134,19 @@ func (l *v3SideEffects) OnCommit(ev *CommitEvent) {
 	}
 }
 
-// splitClientTag 客户端标识 "type/name"（v3ClientTag）拆回日志三元组
+// splitClientTag 客户端标识 "type/name/version"（v3ClientTag）拆回日志三元组；
+// 兼容旧两段式 "type/name"（version 留空）
 func splitClientTag(tag string) (clientType, clientName, clientVersion string) {
 	if tag == "" {
 		return "", "", ""
 	}
-	parts := strings.SplitN(tag, "/", 2)
+	parts := strings.SplitN(tag, "/", 3)
 	clientType = parts[0]
 	if len(parts) > 1 {
 		clientName = parts[1]
 	}
-	return clientType, clientName, ""
+	if len(parts) > 2 {
+		clientVersion = parts[2]
+	}
+	return clientType, clientName, clientVersion
 }

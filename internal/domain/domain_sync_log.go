@@ -56,6 +56,10 @@ const (
 	// SyncLogActionRestore represents restoring a resource from the recycle bin
 	// SyncLogActionRestore 表示从回收站恢复
 	SyncLogActionRestore SyncLogAction = "restore"
+
+	// SyncLogActionDownload represents a client pulling server content (v3 plan pull/move)
+	// SyncLogActionDownload 表示客户端拉取服务器内容（v3 下发 plan 的 pull/move）
+	SyncLogActionDownload SyncLogAction = "download"
 )
 
 // SyncLog represents a synchronization log entry

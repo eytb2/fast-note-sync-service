@@ -16,6 +16,7 @@ import (
 
 	"github.com/google/uuid"
 	"github.com/haierkeys/fast-note-sync-service/internal/app"
+	"github.com/haierkeys/fast-note-sync-service/internal/domain"
 	"github.com/haierkeys/fast-note-sync-service/internal/dto"
 	"github.com/haierkeys/fast-note-sync-service/internal/reconcile"
 	pkgapp "github.com/haierkeys/fast-note-sync-service/pkg/app"
@@ -42,9 +43,52 @@ const v3InlineNoteMaxBytes = 512 * 1024
 // v3UploadSessionTimeoutDefault blob 上传会话默认超时
 const v3UploadSessionTimeoutDefault = 20 * time.Minute
 
-// clientTag 历史记录用的客户端标识
+// clientTag 历史记录用的客户端标识（type/name/version，splitClientTag 拆回三元组）
 func v3ClientTag(c *pkgapp.WebsocketClient) string {
-	return c.ClientType() + "/" + c.ClientName()
+	return c.ClientType() + "/" + c.ClientName() + "/" + c.ClientVersion()
+}
+
+// logPlanDownloads 把本轮下发 plan 的 pull/move 逐条写入同步日志（action=download）。
+// 提交侧（v3_side_effects）只记录 add/modify/rename/soft_delete，拉取侧此前完全
+// 不可见——首轮灌库（几百个文件下载）在 webgui 日志页是空白。best-effort：vault
+// 解析失败只告警跳过，不阻断对账；delete 已由提交方 soft_delete 记录，不重复。
+func (h *SyncV3WSHandler) logPlanDownloads(c *pkgapp.WebsocketClient, params *dto.V3SyncRequest, plan *dto.V3SyncPlanMessage) {
+	if h.App.SyncLogService == nil {
+		return
+	}
+	ops := 0
+	for i := range plan.Ops {
+		if k := plan.Ops[i].Kind; k == reconcile.OpPull || k == reconcile.OpMove {
+			ops++
+		}
+	}
+	if ops == 0 {
+		return
+	}
+	ctx := c.Context()
+	vault, err := h.App.VaultService.GetByName(ctx, c.User.UID, params.Vault)
+	if err != nil || vault == nil {
+		h.logWarn(c, "websocket_router.v3.Sync.SyncLog.VaultLookup", zap.String("vault", params.Vault), zap.Error(err))
+		return
+	}
+	clientType, clientName, clientVer := c.ClientType(), c.ClientName(), c.ClientVersion()
+	for i := range plan.Ops {
+		op := &plan.Ops[i]
+		if op.Kind != reconcile.OpPull && op.Kind != reconcile.OpMove {
+			continue
+		}
+		logType := domain.SyncLogTypeFile
+		if op.Item.IsNote {
+			logType = domain.SyncLogTypeNote
+		}
+		changed := ""
+		if op.Kind == reconcile.OpMove {
+			changed = "path"
+		}
+		h.App.SyncLogService.Log(c.User.UID, vault.ID, logType, domain.SyncLogActionDownload,
+			changed, op.Item.Path, util.EncodeHash32(op.Item.Path),
+			clientType, clientName, clientVer, op.Item.Size)
+	}
 }
 
 // getChunkSizeFromConfig 从注入的配置获取分片大小, 默认为 512KB
@@ -81,6 +125,9 @@ func (h *SyncV3WSHandler) Sync(c *pkgapp.WebsocketClient, msg *pkgapp.WebSocketM
 		h.respondError(c, code.ErrorV3SyncPlanFailed, err, "websocket_router.v3.Sync.SyncPlan", msg)
 		return
 	}
+
+	// 拉取侧文件级同步日志（谁在什么时候拉了什么，webgui 日志页可见）
+	h.logPlanDownloads(c, params, plan)
 
 	// needs/pages 先推、SyncPlan 最后推：plan 即"响应终结帧"。
 	// 客户端见到 plan 立即 settle——消除纯防抖 settle 的竞态（大清单冷启动时

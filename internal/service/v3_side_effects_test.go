@@ -95,6 +95,12 @@ func TestV3SideEffects_SplitClientTag(t *testing.T) {
 	assert.Equal(t, "pc-1", cn)
 	assert.Empty(t, cv)
 
+	// v3ClientTag 现在带版本段："type/name/version"
+	ct, cn, cv = splitClientTag("obsidian/pc-1/1.2.3")
+	assert.Equal(t, "obsidian", ct)
+	assert.Equal(t, "pc-1", cn)
+	assert.Equal(t, "1.2.3", cv)
+
 	ct, cn, cv = splitClientTag("mcp")
 	assert.Equal(t, "mcp", ct)
 	assert.Empty(t, cn)
