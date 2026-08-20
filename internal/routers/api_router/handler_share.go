@@ -244,7 +244,10 @@ func (h *ShareHandler) Query(c *gin.Context) {
 	}
 
 	response.ToResponse(code.Success.WithData(&dto.ShareCreateResponse{
-		ID:         mainID,
+		ID: mainID,
+		// v3: rid 是条目 UUID（上面 ParseInt 对 UUID 恒失败 → ID 恒 0），
+		// 分享链接的 rid 段必须用 EntryID（与 Create/ListShares 一致）；旧记录为空时插件回退 int id
+		EntryID:    share.ResIDV3,
 		Type:       mainType,
 		Token:      token,
 		ExpiresAt:  share.ExpiresAt,
