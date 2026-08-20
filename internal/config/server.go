@@ -34,6 +34,12 @@ type ServerConfig struct {
 	// ShareBaseUrl external share page base URL
 	// ShareBaseUrl 外部分享页面基础 URL
 	ShareBaseUrl string `yaml:"share-base-url"`
+	// ShareBaseUrlUpdateToken static token for the share-base-url push API
+	// (called by router NAT-map notify scripts when the public ip:port changes);
+	// leave empty to disable the endpoint entirely
+	// ShareBaseUrlUpdateToken 分享基址推送接口的静态令牌
+	// （路由器 natmap notify 在公网 ip:port 变化时调用）；留空则完全禁用该接口
+	ShareBaseUrlUpdateToken string `yaml:"share-base-url-update-token"`
 	// MCPSSEPingInterval MCP SSE ping interval (seconds)
 	// MCPSSEPingInterval MCP SSE 保活心跳间隔（秒）
 	MCPSSEPingInterval int `yaml:"mcp-sse-ping-interval" default:"30"`

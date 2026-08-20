@@ -71,6 +71,12 @@ type ShareListRequest struct {
 
 // ---------------- DTO / Response ----------------
 
+// ShareBaseUrlPushRequest Push share base URL (natmap notify)
+// 推送分享基址（natmap notify 公网地址变化时）
+type ShareBaseUrlPushRequest struct {
+	URL string `json:"url"` // Absolute http(s) base URL; empty clears the override // 绝对 http(s) 基址；空值清除覆盖
+}
+
 // ShareCreateResponse Response for creating a share
 // 创建分享响应
 type ShareCreateResponse struct {

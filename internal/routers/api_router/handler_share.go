@@ -28,9 +28,12 @@ type ShareHandler struct {
 // NewShareHandler creates ShareHandler instance with WebSocket server
 // NewShareHandler 创建带 WebSocket 服务的 ShareHandler 实例
 func NewShareHandler(app *app.App, wss *pkgapp.WebsocketServer) *ShareHandler {
-	return &ShareHandler{
+	h := &ShareHandler{
 		Handler: NewHandlerWithWSS(app, wss),
 	}
+	// 启动时载入落盘的运行时覆盖值（natmap notify 推送；文件缺失则静默回落）
+	h.loadShareBaseURLOverride()
+	return h
 }
 
 // Create creates a share
@@ -453,6 +456,14 @@ func (h *ShareHandler) logError(ctx context.Context, method string, err error) {
 	)
 }
 func (h *ShareHandler) getShareBaseUrl(c *gin.Context) string {
+	// Priority 0: runtime override pushed by router NAT-map notify
+	// (public ip:port changes on every router reboot under CGNAT)
+	// 优先级 0：路由器 natmap notify 推送的运行时覆盖
+	// （CGNAT 下公网 ip:port 每次路由器重启都会变）
+	if u := currentShareBaseURLOverride(); u != "" {
+		return u
+	}
+
 	cfg := h.App.Config().Server
 	if cfg.WebGuiPort != "" && cfg.SharePort != "" {
 		if cfg.ShareBaseUrl != "" {

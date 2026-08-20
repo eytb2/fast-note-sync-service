@@ -79,6 +79,13 @@ func registerAPIRoutes(r *gin.Engine, appContainer *app.App, wss *pkgapp.Websock
 		healthHandler := api_router.NewHealthHandler(appContainer)
 		api.GET("/health", healthHandler.Check)
 
+		// Share base URL push (static token auth; called by router NAT-map notify
+		// scripts when the public ip:port changes — no user session exists there)
+		// 分享基址推送（静态令牌鉴权；路由器 natmap notify 在公网 ip:port 变化时
+		// 调用，那边没有用户会话可言）
+		api.POST("/admin/share-base-url", shareHandler.SetShareBaseUrl)
+		api.GET("/admin/share-base-url", shareHandler.GetShareBaseUrlStatus)
+
 		// Share routing group (controlled read-only access)
 		// 分享路由组 (受控的只读访问)
 		share := api.Group("/share")
